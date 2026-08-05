@@ -1,0 +1,19 @@
+{
+  "/api": {
+    "target": "http://localhost:3000",
+    "secure": false
+  },
+  "/tts": {
+    "target": "http://localhost:3000",
+    "secure": false
+  },
+  "/ws": {
+    "target": "ws://localhost:3000",
+    "ws": true,
+    "secure": false
+  },
+  "/uploads": {
+    "target": "http://localhost:3000",
+    "secure": false
+  }
+}
