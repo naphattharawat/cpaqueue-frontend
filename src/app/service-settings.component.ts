@@ -54,6 +54,16 @@ import { playAudioSequence } from './audio-playback.util';
               </select>
             </label>
 
+            <label>จำนวนครั้งที่เรียกซ้ำ
+              <select [(ngModel)]="selected.call_repeat_count">
+                <option [ngValue]="1">1 ครั้ง</option>
+                <option [ngValue]="2">2 ครั้ง</option>
+                <option [ngValue]="3">3 ครั้ง</option>
+                <option [ngValue]="4">4 ครั้ง</option>
+                <option [ngValue]="5">5 ครั้ง</option>
+              </select>
+            </label>
+
             <label>ห้องสำหรับทดสอบเสียง
               <select [(ngModel)]="testRoomId">
                 <option value="">ใช้ห้องแรกของจุดบริการ</option>
@@ -250,7 +260,7 @@ export class ServiceSettingsComponent implements OnInit {
       });
       if (this.selected.tts_provider === 'google') params.set('room_label', this.selected.google_room_label || 'ห้องตรวจ');
       if (this.selected.tts_provider === 'recorded') params.set('room_type', this.selected.recorded_room_type || 'doctor_room');
-      const response = await fetch(`/tts/call?${params.toString()}`);
+      const response = await fetch(this.api.ttsUrl(`/call?${params.toString()}`));
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const data = await response.json();
@@ -302,6 +312,7 @@ export class ServiceSettingsComponent implements OnInit {
       google_room_label: item.google_room_label || item.settings?.google_room_label || 'ห้องตรวจ',
       recorded_room_type: item.recorded_room_type || 'doctor_room',
       voice_rate: Number(item.voice_rate || 1),
+      call_repeat_count: Math.min(5, Math.max(1, Number(item.call_repeat_count || 1))),
       devices: (item.devices || []).map((d: any) => this.normalizeDevice(d)),
     };
   }

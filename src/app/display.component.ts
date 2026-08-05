@@ -204,7 +204,7 @@ export class DisplayComponent implements OnInit {
   }
 
   async playCallAudio(queueNo: string, roomNo: string) {
-    const url = `/tts/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(this.locationId)}&room=${encodeURIComponent(roomNo)}`;
+    const url = this.api.ttsUrl(`/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(this.locationId)}&room=${encodeURIComponent(roomNo)}`);
     const response = await fetch(url);
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {

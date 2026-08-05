@@ -63,18 +63,18 @@ import { QueueService } from './queue.service';
           <p><b>แพทย์</b> {{selected.doctor_name || '-'}}</p>
 
           <ng-container *ngIf="selectedTab(selected) === 'waiting'">
-            <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>F1</span></button>
-            <button class="wide hold" (click)="cancelQueue(selected)">ไม่พบ</button>
+            <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
+            <button class="wide warning" (click)="cancelQueue(selected)">ไม่พบ <span>Alt+3</span></button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'called'">
-            <button class="wide call" (click)="callQueue(selected)">เรียกซ้ำ <span>F1</span></button>
-            <button class="wide warning" (click)="holdQueue(selected)">เรียกไม่พบ <span>F3</span></button>
+            <button class="wide call" (click)="callQueue(selected)">เรียกซ้ำ <span>Alt+1</span></button>
+            <button class="wide warning" (click)="holdQueue(selected)">เรียกไม่พบ <span>Alt+3</span></button>
             <button class="wide hold" (click)="cancelQueue(selected)">ยกเลิกเรียก</button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'hold'">
-            <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>F1</span></button>
+            <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
           </ng-container>
-          <button class="wide next" (click)="callNext()">คิวถัดไป <span>F2</span></button>
+          <button class="wide next" (click)="callNext()">คิวถัดไป <span>Alt+2</span></button>
         </ng-container>
         <ng-template #empty><div class="empty"><i class="fa-solid fa-heart-pulse"></i><p>ยังไม่ได้เลือกคิว</p></div></ng-template>
       </aside>
@@ -250,9 +250,23 @@ export class CallerComponent implements OnInit {
   @HostListener('document:keydown', ['$event'])
   hotkey(e: KeyboardEvent) {
     if (!this.selected) return;
-    if (e.key === 'F1') this.callQueue(this.selected);
-    if (e.key === 'F2') this.callNext();
-    if (e.key === 'F3' && this.selectedTab(this.selected) === 'called') this.holdQueue(this.selected);
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.key === '1') {
+      e.preventDefault();
+      this.callQueue(this.selected);
+    }
+    if (e.key === '2') {
+      e.preventDefault();
+      this.callNext();
+    }
+    if (e.key === '3' && this.selectedTab(this.selected) === 'waiting') {
+      e.preventDefault();
+      this.cancelQueue(this.selected);
+    }
+    if (e.key === '3' && this.selectedTab(this.selected) === 'called') {
+      e.preventDefault();
+      this.holdQueue(this.selected);
+    }
   }
 
   @HostListener('document:click', ['$event'])

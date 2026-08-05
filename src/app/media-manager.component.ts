@@ -8,6 +8,7 @@ import { QueueService } from './queue.service';
   imports: [CommonModule, FormsModule],
   template: `
     <main class="media-manager">
+      <div class="quick-toast" *ngIf="toastMessage">{{toastMessage}}</div>
       <header>
         <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
         <h1>จัดการภาพสไลด์</h1>
@@ -20,6 +21,14 @@ import { QueueService } from './queue.service';
         <input [(ngModel)]="label" placeholder="ชื่อรูป">
         <input type="number" [(ngModel)]="duration" min="3" placeholder="วินาที" title="วินาทีต่อสไลด์">
         <button class="btn" (click)="upload()">อัปโหลด</button>
+      </section>
+
+      <section class="upload-card">
+        <b><i class="fa-brands fa-youtube"></i> เพิ่ม YouTube Video / Live</b>
+        <input [(ngModel)]="youtubeUrl" placeholder="วางลิงก์ YouTube หรือ Live">
+        <input [(ngModel)]="youtubeLabel" placeholder="ชื่อสื่อ">
+        <input type="number" [(ngModel)]="youtubeDuration" min="0" placeholder="วินาที" title="ใส่ 0 เพื่อแสดงไม่จำกัดเวลา">
+        <button class="btn" (click)="addYoutube()">เพิ่มลิงก์</button>
       </section>
 
       <section class="media-summary">
@@ -39,13 +48,18 @@ import { QueueService } from './queue.service';
 
       <section class="media-grid">
         <article *ngFor="let m of items" [class.selected]="m.location_count">
-          <img [src]="'/uploads/'+m.file">
+          <img *ngIf="m.type !== 'youtube'" [src]="api.mediaUrl(m.file)">
+          <div class="youtube-preview" *ngIf="m.type === 'youtube'">
+            <img *ngIf="m.video_id" [src]="youtubeThumbnail(m)">
+            <i *ngIf="!m.video_id" class="fa-brands fa-youtube"></i>
+            <span>{{m.source_url?.includes('/live') ? 'LIVE' : 'YouTube'}}</span>
+          </div>
           <div class="media-card-head">
             <strong [title]="m.label || m.file">{{m.label || m.file}}</strong>
             <span>{{m.location_count || 0}} จุดบริการ</span>
           </div>
           <input [(ngModel)]="m.label" placeholder="ชื่อรูป">
-          <input type="number" [(ngModel)]="m.duration" min="3" placeholder="วินาที" title="วินาทีต่อสไลด์">
+          <input type="number" [(ngModel)]="m.duration" min="0" placeholder="วินาที" title="ใส่ 0 เพื่อแสดงไม่จำกัดเวลา">
           <button class="assign" (click)="openAssignment(m)">
             <i class="fa-solid fa-list-check"></i> จัดจุดบริการ
           </button>
@@ -62,7 +76,11 @@ import { QueueService } from './queue.service';
           <h2><i class="fa-solid fa-image"></i> เลือกจุดบริการที่จะแสดงรูปนี้</h2>
 
           <div class="assignment-preview">
-            <img [src]="'/uploads/'+editing.file">
+            <img *ngIf="editing.type !== 'youtube'" [src]="api.mediaUrl(editing.file)">
+            <div class="youtube-preview mini" *ngIf="editing.type === 'youtube'">
+              <img *ngIf="editing.video_id" [src]="youtubeThumbnail(editing)">
+              <i *ngIf="!editing.video_id" class="fa-brands fa-youtube"></i>
+            </div>
             <div>
               <strong>{{editing.label || editing.file}}</strong>
               <span>เลือก {{pickedLocations.size}} / {{locations.length}} จุดบริการ</span>
@@ -94,11 +112,16 @@ export class MediaManagerComponent implements OnInit {
   file?: File;
   label = '';
   duration = 10;
+  youtubeUrl = '';
+  youtubeLabel = '';
+  youtubeDuration = 30;
   editing: any = null;
   pickedLocations = new Set<string>();
   locationSearch = '';
+  toastMessage = '';
+  private toastTimer?: number;
 
-  constructor(private api: QueueService) {}
+  constructor(public api: QueueService) {}
 
   ngOnInit() {
     this.api.locations().subscribe(r => this.locations = r.data || []);
@@ -137,8 +160,30 @@ export class MediaManagerComponent implements OnInit {
     });
   }
 
+  addYoutube() {
+    if (!this.youtubeUrl.trim()) return;
+    this.api.addYoutubeMedia({
+      url: this.youtubeUrl.trim(),
+      label: this.youtubeLabel.trim(),
+      duration: this.youtubeDuration,
+      enabled: true,
+    }).subscribe(() => {
+      this.youtubeUrl = '';
+      this.youtubeLabel = '';
+      this.youtubeDuration = 30;
+      this.load();
+    });
+  }
+
+  youtubeThumbnail(item: any) {
+    return `https://img.youtube.com/vi/${encodeURIComponent(item.video_id)}/hqdefault.jpg`;
+  }
+
   saveMediaInfo() {
-    this.api.updateMedia(this.items).subscribe(() => this.load());
+    this.api.updateMedia(this.items).subscribe(() => {
+      this.showToast('บันทึกข้อมูลสไลด์แล้ว');
+      this.load();
+    });
   }
 
   openAssignment(item: any) {
@@ -177,5 +222,11 @@ export class MediaManagerComponent implements OnInit {
 
   remove(m: any) {
     this.api.deleteMedia(m.file).subscribe(() => this.load());
+  }
+
+  showToast(message: string) {
+    window.clearTimeout(this.toastTimer);
+    this.toastMessage = message;
+    this.toastTimer = window.setTimeout(() => this.toastMessage = '', 1800);
   }
 }

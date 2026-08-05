@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
@@ -31,7 +32,10 @@ import { playAudioSequence } from './audio-playback.util';
       <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6">
         <section class="multi-left">
           <div class="media-stage">
-            <img *ngIf="currentMedia" [src]="'/uploads/'+currentMedia.file" [alt]="currentMedia.label || 'media'">
+            <img *ngIf="currentMedia && currentMedia.type !== 'youtube'" [src]="api.mediaUrl(currentMedia.file)" [alt]="currentMedia.label || 'media'">
+            <div class="youtube-frame-wrap" *ngIf="currentMedia?.type === 'youtube'">
+              <iframe #youtubeFrame [src]="youtubeEmbed(currentMedia)" (load)="syncYoutubeSound()" title="YouTube media" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+            </div>
             <div *ngIf="!currentMedia" class="media-empty">ยังไม่มีสื่อแสดงผล</div>
             <span class="media-counter" *ngIf="media.length">{{mediaIndex + 1}} / {{media.length}}</span>
           </div>
@@ -79,6 +83,8 @@ import { playAudioSequence } from './audio-playback.util';
   `,
 })
 export class DisplayDeviceComponent implements OnInit {
+  @ViewChild('youtubeFrame') youtubeFrame?: ElementRef<HTMLIFrameElement>;
+
   token = '';
   device: any = null;
   loading = true;
@@ -93,15 +99,21 @@ export class DisplayDeviceComponent implements OnInit {
   currentMedia: any = null;
   mediaIndex = 0;
   slideTimer?: number;
+  youtubeUrlCache = new Map<string, any>();
   initialLoadDone = false;
   lastActiveByRoom = new Map<string, string>();
   announcingRoomId = '';
   forceAnnounceRooms = new Set<string>();
+  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string }> = [];
+  audioQueueRunning = false;
+  recentlyQueuedAudio = new Set<string>();
+  callRepeatCount = 1;
   voiceEnabled = localStorage.getItem('display_voice_enabled') !== 'false';
+  youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${location.origin}/check-queue`)}`;
 
-  constructor(private route: ActivatedRoute, private api: QueueService) {}
+  constructor(private route: ActivatedRoute, public api: QueueService, private sanitizer: DomSanitizer) {}
 
   ngOnInit() {
     this.token = this.route.snapshot.queryParamMap.get('token') || '';
@@ -128,7 +140,12 @@ export class DisplayDeviceComponent implements OnInit {
     this.api.events$.subscribe(e => {
       if (e.type === 'queue.changed' && this.device?.room_ids?.length) {
         const eventRoomId = String(e.payload?.roomId ?? '');
-        if (e.payload?.action === 'call' && eventRoomId) this.forceAnnounceRooms.add(eventRoomId);
+        const eventQueueNo = this.eventDisplayNo(e.payload);
+        if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
+          this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId);
+        } else if (e.payload?.action === 'call' && eventRoomId) {
+          this.forceAnnounceRooms.add(eventRoomId);
+        }
         this.loadBoard();
       }
     });
@@ -142,6 +159,7 @@ export class DisplayDeviceComponent implements OnInit {
       next: r => {
         this.roomsData = r.rooms_data || [];
         this.calledList = r.called_list || [];
+        this.callRepeatCount = this.normalizeRepeatCount(r.call_repeat_count);
         this.title = this.roomsData[0]?.location_name ? `หน้าจอคิวรวม ${this.roomsData[0].location_name}` : 'หน้าจอคิวรวม';
         for (const room of this.roomsData) {
           const activeNo = this.displayNo(room.active);
@@ -149,7 +167,7 @@ export class DisplayDeviceComponent implements OnInit {
           const key = String(room.room_id);
           const previous = this.lastActiveByRoom.get(key) || '';
           if (this.initialLoadDone && activeNo && (previous !== activeSignature || this.forceAnnounceRooms.has(key))) {
-            this.speakQueue(activeNo, room.room_number || room.room_id, key);
+            this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key);
             this.forceAnnounceRooms.delete(key);
           }
           this.lastActiveByRoom.set(key, activeSignature);
@@ -178,25 +196,79 @@ export class DisplayDeviceComponent implements OnInit {
     return q.queue_slot_number || q.queue_no || q.oqueue || '';
   }
 
+  youtubeEmbed(item: any) {
+    const url = this.youtubeEmbedUrl(item);
+    if (!this.youtubeUrlCache.has(url)) this.youtubeUrlCache.set(url, this.sanitizer.bypassSecurityTrustResourceUrl(url));
+    return this.youtubeUrlCache.get(url);
+  }
+
+  youtubeEmbedUrl(item: any) {
+    const raw = item?.embed_url || '';
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      url.searchParams.set('enablejsapi', '1');
+      url.searchParams.set('mute', this.youtubeSoundEnabled ? '0' : '1');
+      url.searchParams.set('origin', location.origin);
+      return url.toString();
+    } catch {
+      return raw;
+    }
+  }
+
   activeSignature(q: any) {
     if (!q) return '';
     return `${this.displayNo(q)}:${q.call_id || q.call_datetime || ''}`;
   }
 
+  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string) {
+    if (!this.voiceEnabled) return;
+    const signature = `${queueNo}:${roomNumber}:${roomId}`;
+    if (this.recentlyQueuedAudio.has(signature)) return;
+    if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}` === signature)) return;
+    this.recentlyQueuedAudio.add(signature);
+    window.setTimeout(() => this.recentlyQueuedAudio.delete(signature), 10000);
+    this.audioQueue.push({ queueNo, roomNumber, roomId });
+    this.processAudioQueue();
+  }
+
+  eventDisplayNo(payload: any) {
+    if (!payload) return '';
+    return this.queueType === 'oqueue' ? payload.oqueue || payload.queueNo || '' : payload.queueNo || payload.oqueue || '';
+  }
+
+  async processAudioQueue() {
+    if (this.audioQueueRunning) return;
+    this.audioQueueRunning = true;
+    while (this.audioQueue.length) {
+      const item = this.audioQueue.shift();
+      if (item) {
+        for (let i = 0; i < this.callRepeatCount; i += 1) {
+          await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          if (i < this.callRepeatCount - 1) await new Promise(resolve => setTimeout(resolve, 700));
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
+    this.audioQueueRunning = false;
+  }
+
   async speakQueue(queueNo: string, roomNumber: string, roomId: string) {
     if (!this.voiceEnabled) return;
     this.announcingRoomId = roomId;
+    this.duckYoutubeAudio(true);
     const roomDigits = String(roomNumber).replace(/\D/g, '');
     try {
       await this.playCallAudio(queueNo, roomDigits || String(roomNumber));
     } catch (err) {
       console.warn('TTS playback failed', err);
     }
+    this.duckYoutubeAudio(false);
     setTimeout(() => this.announcingRoomId = '', 3000);
   }
 
   async playCallAudio(queueNo: string, roomNo: string) {
-    const url = `/tts/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(String(this.device?.location_id || ''))}&room=${encodeURIComponent(roomNo)}`;
+    const url = this.api.ttsUrl(`/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(String(this.device?.location_id || ''))}&room=${encodeURIComponent(roomNo)}`);
     const response = await fetch(url);
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -218,9 +290,36 @@ export class DisplayDeviceComponent implements OnInit {
     });
   }
 
+  duckYoutubeAudio(active: boolean) {
+    if (!this.currentMedia || this.currentMedia.type !== 'youtube') return;
+    this.setYoutubeAudio(active ? 10 : 100);
+  }
+
+  setYoutubeAudio(volume: number) {
+    const win = this.youtubeFrame?.nativeElement.contentWindow;
+    if (!win) return;
+    const command = (func: string, args: unknown[] = []) => win.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
+    if (!this.youtubeSoundEnabled || volume <= 0) {
+      command('mute');
+      return;
+    }
+    command('unMute');
+    command('setVolume', [volume]);
+  }
+
+  syncYoutubeSound() {
+    setTimeout(() => this.setYoutubeAudio(this.youtubeSoundEnabled ? 100 : 0), 300);
+  }
+
+  normalizeRepeatCount(value: any) {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 1;
+  }
+
   scheduleSlide() {
     if (this.slideTimer) window.clearTimeout(this.slideTimer);
     if (this.media.length <= 1) return;
+    if (Number(this.currentMedia?.duration) === 0) return;
     const delay = Math.max(3, Number(this.currentMedia?.duration || 10)) * 1000;
     this.slideTimer = window.setTimeout(() => {
       this.mediaIndex = (this.mediaIndex + 1) % this.media.length;
