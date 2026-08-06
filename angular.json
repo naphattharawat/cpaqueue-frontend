@@ -22,8 +22,6 @@
               }
             ],
             "styles": [
-              "../assets/css/fonts.css",
-              "../assets/css/all.min.css",
               "src/styles.css"
             ]
           },
