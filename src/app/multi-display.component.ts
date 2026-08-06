@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
+import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -13,7 +14,7 @@ import { playAudioSequence } from './audio-playback.util';
     <main class="multi-display-page">
       <header class="multi-display-header">
         <div class="multi-title-group">
-          <a href="/" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
+          <a [href]="appRouteUrl('/')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
           <h1>{{title}}</h1>
         </div>
         <div class="multi-clock">เวลา&nbsp; {{clock}} <span>{{dateText}}</span></div>
@@ -181,9 +182,11 @@ export class MultiDisplayComponent implements OnInit {
   youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   themeName = localStorage.getItem('display_theme') || 'green';
-  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${location.origin}/check-queue`)}`;
+  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(appAbsoluteUrl('/check-queue'))}`;
 
   constructor(private route: ActivatedRoute, public api: QueueService, private sanitizer: DomSanitizer) {}
+
+  appRouteUrl = appRouteUrl;
 
   ngOnInit() {
     this.route.queryParamMap.subscribe(p => {
@@ -237,7 +240,7 @@ export class MultiDisplayComponent implements OnInit {
   startBoard() {
     this.roomIds = this.uniqueRoomIds([...this.picked].join(','));
     if (!this.roomIds) return;
-    history.replaceState(null, '', `/display-multi?location_id=${this.locationId}&room_ids=${this.roomIds}`);
+    history.replaceState(null, '', appRouteUrl(`/display-multi?location_id=${this.locationId}&room_ids=${this.roomIds}`));
     this.loadBoard();
     this.loadMedia();
     this.api.connect(this.roomIds.split(',').map(id => `room:${id}`));

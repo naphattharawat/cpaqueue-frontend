@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
+import { appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -11,7 +12,7 @@ import { playAudioSequence } from './audio-playback.util';
   template: `
     <main class="display-screen" *ngIf="roomId; else setup">
       <header>
-        <a href="/" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
+        <a [href]="appRouteUrl('/')" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
         <div><small>โรงพยาบาลเจ้าพระยาอภัยภูเบศร</small><h2>{{doctorName || locationName}}</h2></div>
         <div class="time"><b>{{clock}}</b><span>{{dateText}}</span></div>
       </header>
@@ -37,7 +38,7 @@ import { playAudioSequence } from './audio-playback.util';
     <ng-template #setup>
       <main class="display-screen display-setup-screen">
         <header>
-          <a href="/" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
+          <a [href]="appRouteUrl('/')" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
           <div><small>Queue Display</small><h2>เลือกจุดบริการสำหรับหน้าจอแสดงคิว</h2></div>
           <div class="time"><b>{{clock}}</b><span>{{dateText}}</span></div>
         </header>
@@ -87,6 +88,8 @@ export class DisplayComponent implements OnInit {
   forceAnnounceRoomId = '';
 
   constructor(private route: ActivatedRoute, private api: QueueService) {}
+
+  appRouteUrl = appRouteUrl;
 
   ngOnInit() {
     this.api.locations().subscribe(r => {
@@ -145,7 +148,7 @@ export class DisplayComponent implements OnInit {
     if (!this.locationId || !this.selectedRoomId) return;
     this.roomId = this.selectedRoomId;
     localStorage.setItem('display_location_id', this.locationId);
-    history.replaceState(null, '', `/display?location_id=${this.locationId}&room_id=${this.roomId}`);
+    history.replaceState(null, '', appRouteUrl(`/display?location_id=${this.locationId}&room_id=${this.roomId}`));
     this.load();
     this.api.connect([`location:${this.locationId}`, `room:${this.roomId}`]);
   }

@@ -29,6 +29,7 @@
           },
           "configurations": {
             "production": {
+              "baseHref": "/queue/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

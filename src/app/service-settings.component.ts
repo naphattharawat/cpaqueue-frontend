@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
+import { appAbsoluteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -302,7 +303,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   displayDeviceUrl(token: string) {
-    return `${location.origin}/display-device?token=${encodeURIComponent(token)}`;
+    return appAbsoluteUrl(`/display-device?token=${encodeURIComponent(token)}`);
   }
 
   showToast(message: string) {

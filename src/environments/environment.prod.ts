@@ -4,5 +4,5 @@ export const environment = {
   authBaseUrl: 'https://m.cpa.go.th/queue-api',
   ttsBaseUrl: 'https://m.cpa.go.th/queue-api',
   uploadBaseUrl: 'https://m.cpa.go.th/queue-api',
-  wsBaseUrl: 'ws://m.cpa.go.th/queue-api',
+  wsBaseUrl: 'wss://m.cpa.go.th/queue-api',
 };

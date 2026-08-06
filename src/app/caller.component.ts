@@ -2,13 +2,14 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
+import { appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     <header class="topbar">
-      <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
+      <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
       <div><b>Doctor Queue</b><small>CALLER</small></div>
       <span class="pill"><i class="fa-regular fa-clock"></i>{{ clock }}</span>
     </header>
@@ -128,13 +129,15 @@ export class CallerComponent implements OnInit {
   locationId = localStorage.getItem('caller_location_id') || '';
   selectedDoctorCodes: string[] = JSON.parse(localStorage.getItem('caller_doctor_codes') || '[]');
   tab: 'waiting' | 'called' | 'hold' = 'waiting';
-  displayLink = '/display';
+  displayLink = appRouteUrl('/display');
   doctorOpen = false;
   doctorQuery = '';
   pooledCallEnabled = false;
   private loadQueuesWatchdog?: number;
 
   constructor(private api: QueueService) {}
+
+  appRouteUrl = appRouteUrl;
 
   ngOnInit() {
     setInterval(() => this.clock = new Date().toTimeString().slice(0, 8), 1000);
@@ -292,8 +295,8 @@ export class CallerComponent implements OnInit {
       : this.queues.map(q => q.opd_qs_room_id);
     const rooms = [...new Set(sourceRooms.map(room => String(room || '').trim()).filter(Boolean))];
     this.displayLink = rooms.length > 1
-      ? `/display-multi?location_id=${this.locationId}&room_ids=${rooms.join(',')}`
-      : `/display?location_id=${this.locationId}${rooms[0] ? `&room_id=${rooms[0]}` : ''}${doc ? `&doctor_code=${doc}` : ''}`;
+      ? appRouteUrl(`/display-multi?location_id=${this.locationId}&room_ids=${rooms.join(',')}`)
+      : appRouteUrl(`/display?location_id=${this.locationId}${rooms[0] ? `&room_id=${rooms[0]}` : ''}${doc ? `&doctor_code=${doc}` : ''}`);
   }
 
   selectedDestinationDoctor() {

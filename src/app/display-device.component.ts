@@ -4,6 +4,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
+import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -20,7 +21,7 @@ import { playAudioSequence } from './audio-playback.util';
     <main class="multi-display-page" *ngIf="!error && !loading">
       <header class="multi-display-header">
         <div class="multi-title-group">
-          <a href="/display-device" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
+          <a [href]="appRouteUrl('/display-device')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
           <h1>{{title}}</h1>
         </div>
         <div class="multi-clock">เวลา&nbsp; {{clock}} <span>{{dateText}}</span></div>
@@ -116,15 +117,17 @@ export class DisplayDeviceComponent implements OnInit {
   audioUnlocked = true;
   youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
-  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${location.origin}/check-queue`)}`;
+  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(appAbsoluteUrl('/check-queue'))}`;
 
   constructor(private route: ActivatedRoute, public api: QueueService, private sanitizer: DomSanitizer) {}
+
+  appRouteUrl = appRouteUrl;
 
   ngOnInit() {
     const queryToken = this.route.snapshot.queryParamMap.get('token') || '';
     if (queryToken) {
       sessionStorage.setItem('display_device_token', queryToken);
-      history.replaceState({}, '', '/display-device');
+      history.replaceState({}, '', appRouteUrl('/display-device'));
     }
     this.token = queryToken || sessionStorage.getItem('display_device_token') || '';
     if (!this.token) {

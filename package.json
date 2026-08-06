@@ -1,7 +1,7 @@
 {
   "scripts": {
     "start": "ng serve --host 0.0.0.0",
-    "build": "ng build --configuration production",
+    "build": "ng build --configuration production --base-href=./",
     "serve:prod": "node server.js"
   },
   "dependencies": {

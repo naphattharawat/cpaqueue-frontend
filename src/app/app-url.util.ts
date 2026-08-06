@@ -1,11 +1,25 @@
-export function appUrl(baseUrl: string, path: string) {
-  const cleanBase = String(baseUrl || '').replace(/\/$/, '');
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${cleanBase}${cleanPath}`;
+export function appRouteUrl(path = '') {
+  const base = document.querySelector('base')?.getAttribute('href') || '/';
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+  const normalizedPath = path.replace(/^\/+/, '');
+  return `${normalizedBase}${normalizedPath}`;
 }
 
-export function wsUrl(baseUrl: string, path: string) {
-  if (baseUrl) return appUrl(baseUrl, path);
+export function appAbsoluteUrl(path = '') {
+  return new URL(appRouteUrl(path), location.origin).toString();
+}
+
+export function appUrl(base = '', path = '') {
+  const normalizedBase = String(base || '').replace(/\/+$/, '');
+  const normalizedPath = String(path || '').replace(/^\/+/, '');
+  if (!normalizedBase) return `/${normalizedPath}`;
+  if (!normalizedPath) return normalizedBase;
+  return `${normalizedBase}/${normalizedPath}`;
+}
+
+export function wsUrl(base = '', path = '') {
+  if (base) return appUrl(base, path);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${proto}://${location.host}${path.startsWith('/') ? path : `/${path}`}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${proto}://${location.host}${cleanPath}`;
 }
