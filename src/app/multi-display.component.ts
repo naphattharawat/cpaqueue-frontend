@@ -393,7 +393,7 @@ export class MultiDisplayComponent implements OnInit {
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const data = await response.json();
-      await this.playAudioFiles(data.files || [], Number(data.voice_rate || 1));
+      await this.playAudioFiles((data.files || []).map((file: string) => this.api.audioAssetUrl(file)), Number(data.voice_rate || 1));
       return;
     }
     const blob = await response.blob();

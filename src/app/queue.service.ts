@@ -74,6 +74,10 @@ export class QueueService {
   }
 
   mediaUrl(file: string) { return appUrl(environment.uploadBaseUrl, `/uploads/${file}`); }
+  audioAssetUrl(url: string) {
+    if (/^https?:\/\//i.test(url)) return url;
+    return appUrl(environment.ttsBaseUrl, url.startsWith('/') ? url : `/assets/audio/${url}`);
+  }
   ttsUrl(path: string) { return appUrl(environment.ttsBaseUrl, `/tts${path.startsWith('/') ? path : `/${path}`}`); }
 
   private api(path: string) {
