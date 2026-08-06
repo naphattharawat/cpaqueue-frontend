@@ -89,6 +89,10 @@ import { playAudioSequence } from './audio-playback.util';
         <span></span>
         <span>กลุ่มภารกิจสุขภาพดิจิทัล โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
       </footer>
+      <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
+        <i class="fa-solid fa-volume-high"></i>
+        <span>เปิดเสียงเรียกคิว</span>
+      </button>
 
       <div class="settings-backdrop" *ngIf="settingsOpen" (click)="closeSettings()">
         <section class="settings-card" (click)="$event.stopPropagation()">
@@ -173,6 +177,7 @@ export class MultiDisplayComponent implements OnInit {
   callRepeatCount = 1;
   settingsOpen = false;
   voiceEnabled = localStorage.getItem('display_voice_enabled') !== 'false';
+  audioUnlocked = true;
   youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   themeName = localStorage.getItem('display_theme') || 'green';
@@ -279,6 +284,12 @@ export class MultiDisplayComponent implements OnInit {
       url.searchParams.set('enablejsapi', '1');
       url.searchParams.set('mute', this.youtubeSoundEnabled ? '0' : '1');
       url.searchParams.set('origin', location.origin);
+      url.searchParams.set('controls', '0');
+      url.searchParams.set('modestbranding', '1');
+      url.searchParams.set('rel', '0');
+      url.searchParams.set('playsinline', '1');
+      url.searchParams.set('cc_load_policy', '0');
+      url.searchParams.set('iv_load_policy', '3');
       return url.toString();
     } catch {
       return raw;
@@ -307,13 +318,19 @@ export class MultiDisplayComponent implements OnInit {
   }
 
   async processAudioQueue() {
+    if (!this.audioUnlocked) return;
     if (this.audioQueueRunning) return;
     this.audioQueueRunning = true;
     while (this.audioQueue.length) {
       const item = this.audioQueue.shift();
       if (item) {
         for (let i = 0; i < this.callRepeatCount; i += 1) {
-          await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          const played = await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          if (!played) {
+            this.audioQueue.unshift(item);
+            this.audioQueueRunning = false;
+            return;
+          }
           if (i < this.callRepeatCount - 1) await new Promise(resolve => setTimeout(resolve, 700));
         }
       }
@@ -322,8 +339,27 @@ export class MultiDisplayComponent implements OnInit {
     this.audioQueueRunning = false;
   }
 
+  async unlockAudio() {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        const context = new AudioContextClass();
+        await context.resume();
+        await context.close();
+      }
+      const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=');
+      audio.volume = 0;
+      await audio.play();
+      audio.pause();
+      this.audioUnlocked = true;
+      this.processAudioQueue();
+    } catch (err) {
+      console.warn('Audio unlock failed', err);
+    }
+  }
+
   async speakQueue(queueNo: string, roomNumber: string, roomId: string) {
-    if (!this.voiceEnabled && !this.audioQueueRunning) return;
+    if (!this.voiceEnabled && !this.audioQueueRunning) return true;
     this.announcingRoomId = roomId;
     this.duckYoutubeAudio(true);
     const qSpelled = String(queueNo).split('').join(' ');
@@ -332,11 +368,20 @@ export class MultiDisplayComponent implements OnInit {
     const msg = `ขอเชิญหมายเลข ${qSpelled} ที่ ${roomText} ค่ะ`;
     try {
       await this.playCallAudio(queueNo, roomDigits || String(roomNumber));
+      return true;
     } catch (err) {
       console.warn('TTS playback failed', err);
+      if (this.isAutoplayBlocked(err)) this.audioUnlocked = false;
+      return false;
+    } finally {
+      this.duckYoutubeAudio(false);
+      setTimeout(() => this.announcingRoomId = '', 3000);
     }
-    this.duckYoutubeAudio(false);
-    setTimeout(() => this.announcingRoomId = '', 3000);
+  }
+
+  isAutoplayBlocked(err: unknown) {
+    const text = `${(err as any)?.name || ''} ${(err as any)?.message || err || ''}`.toLowerCase();
+    return text.includes('notallowed') || text.includes('user gesture') || text.includes('not allowed to start') || text.includes('play() failed');
   }
 
   async playCallAudio(queueNo: string, roomNo: string) {
@@ -397,19 +442,31 @@ export class MultiDisplayComponent implements OnInit {
   }
 
   setYoutubeAudio(volume: number) {
-    const win = this.youtubeFrame?.nativeElement.contentWindow;
-    if (!win) return;
-    const command = (func: string, args: unknown[] = []) => win.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
     if (!this.youtubeSoundEnabled || volume <= 0) {
-      command('mute');
+      this.youtubeCommand('mute');
       return;
     }
-    command('unMute');
-    command('setVolume', [volume]);
+    this.youtubeCommand('unMute');
+    this.youtubeCommand('setVolume', [volume]);
+  }
+
+  youtubeCommand(func: string, args: unknown[] = []) {
+    const win = this.youtubeFrame?.nativeElement.contentWindow;
+    if (!win) return;
+    win.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
+  }
+
+  disableYoutubeCaptions() {
+    this.youtubeCommand('setOption', ['captions', 'track', {}]);
+    this.youtubeCommand('setOption', ['captions', 'fontSize', -1]);
+    this.youtubeCommand('unloadModule', ['captions']);
   }
 
   syncYoutubeSound() {
-    setTimeout(() => this.setYoutubeAudio(this.youtubeSoundEnabled ? 100 : 0), 300);
+    [300, 900, 1800].forEach(delay => setTimeout(() => {
+      this.disableYoutubeCaptions();
+      this.setYoutubeAudio(this.youtubeSoundEnabled ? 100 : 0);
+    }, delay));
   }
 
   normalizeRepeatCount(value: any) {

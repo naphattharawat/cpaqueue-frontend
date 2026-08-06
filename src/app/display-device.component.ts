@@ -20,7 +20,7 @@ import { playAudioSequence } from './audio-playback.util';
     <main class="multi-display-page" *ngIf="!error && !loading">
       <header class="multi-display-header">
         <div class="multi-title-group">
-          <a href="/display-device?token={{token}}" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
+          <a href="/display-device" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
           <h1>{{title}}</h1>
         </div>
         <div class="multi-clock">เวลา&nbsp; {{clock}} <span>{{dateText}}</span></div>
@@ -79,6 +79,10 @@ import { playAudioSequence } from './audio-playback.util';
         <span></span>
         <span>กลุ่มภารกิจสุขภาพดิจิทัล โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
       </footer>
+      <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
+        <i class="fa-solid fa-volume-high"></i>
+        <span>เปิดเสียงเรียกคิว</span>
+      </button>
     </main>
   `,
 })
@@ -109,6 +113,7 @@ export class DisplayDeviceComponent implements OnInit {
   recentlyQueuedAudio = new Set<string>();
   callRepeatCount = 1;
   voiceEnabled = localStorage.getItem('display_voice_enabled') !== 'false';
+  audioUnlocked = true;
   youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`${location.origin}/check-queue`)}`;
@@ -116,7 +121,12 @@ export class DisplayDeviceComponent implements OnInit {
   constructor(private route: ActivatedRoute, public api: QueueService, private sanitizer: DomSanitizer) {}
 
   ngOnInit() {
-    this.token = this.route.snapshot.queryParamMap.get('token') || '';
+    const queryToken = this.route.snapshot.queryParamMap.get('token') || '';
+    if (queryToken) {
+      sessionStorage.setItem('display_device_token', queryToken);
+      history.replaceState({}, '', '/display-device');
+    }
+    this.token = queryToken || sessionStorage.getItem('display_device_token') || '';
     if (!this.token) {
       this.showError('ไม่พบ token ใน URL');
       return;
@@ -132,7 +142,7 @@ export class DisplayDeviceComponent implements OnInit {
         this.loading = false;
         this.loadBoard();
         this.loadMedia();
-        this.api.connect(this.device.room_ids.map((id: any) => `room:${id}`));
+        this.api.connect(this.device.room_ids.map((id: any) => `room:${id}`), { deviceToken: this.token });
       },
       error: err => this.showError(err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'ไม่พบ device token หรือ token ถูกปิดใช้งาน'),
     });
@@ -210,6 +220,12 @@ export class DisplayDeviceComponent implements OnInit {
       url.searchParams.set('enablejsapi', '1');
       url.searchParams.set('mute', this.youtubeSoundEnabled ? '0' : '1');
       url.searchParams.set('origin', location.origin);
+      url.searchParams.set('controls', '0');
+      url.searchParams.set('modestbranding', '1');
+      url.searchParams.set('rel', '0');
+      url.searchParams.set('playsinline', '1');
+      url.searchParams.set('cc_load_policy', '0');
+      url.searchParams.set('iv_load_policy', '3');
       return url.toString();
     } catch {
       return raw;
@@ -238,13 +254,19 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   async processAudioQueue() {
+    if (!this.audioUnlocked) return;
     if (this.audioQueueRunning) return;
     this.audioQueueRunning = true;
     while (this.audioQueue.length) {
       const item = this.audioQueue.shift();
       if (item) {
         for (let i = 0; i < this.callRepeatCount; i += 1) {
-          await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          const played = await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          if (!played) {
+            this.audioQueue.unshift(item);
+            this.audioQueueRunning = false;
+            return;
+          }
           if (i < this.callRepeatCount - 1) await new Promise(resolve => setTimeout(resolve, 700));
         }
       }
@@ -253,18 +275,46 @@ export class DisplayDeviceComponent implements OnInit {
     this.audioQueueRunning = false;
   }
 
+  async unlockAudio() {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        const context = new AudioContextClass();
+        await context.resume();
+        await context.close();
+      }
+      const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=');
+      audio.volume = 0;
+      await audio.play();
+      audio.pause();
+      this.audioUnlocked = true;
+      this.processAudioQueue();
+    } catch (err) {
+      console.warn('Audio unlock failed', err);
+    }
+  }
+
   async speakQueue(queueNo: string, roomNumber: string, roomId: string) {
-    if (!this.voiceEnabled) return;
+    if (!this.voiceEnabled) return true;
     this.announcingRoomId = roomId;
     this.duckYoutubeAudio(true);
     const roomDigits = String(roomNumber).replace(/\D/g, '');
     try {
       await this.playCallAudio(queueNo, roomDigits || String(roomNumber));
+      return true;
     } catch (err) {
       console.warn('TTS playback failed', err);
+      if (this.isAutoplayBlocked(err)) this.audioUnlocked = false;
+      return false;
+    } finally {
+      this.duckYoutubeAudio(false);
+      setTimeout(() => this.announcingRoomId = '', 3000);
     }
-    this.duckYoutubeAudio(false);
-    setTimeout(() => this.announcingRoomId = '', 3000);
+  }
+
+  isAutoplayBlocked(err: unknown) {
+    const text = `${(err as any)?.name || ''} ${(err as any)?.message || err || ''}`.toLowerCase();
+    return text.includes('notallowed') || text.includes('user gesture') || text.includes('not allowed to start') || text.includes('play() failed');
   }
 
   async playCallAudio(queueNo: string, roomNo: string) {
@@ -296,19 +346,31 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   setYoutubeAudio(volume: number) {
-    const win = this.youtubeFrame?.nativeElement.contentWindow;
-    if (!win) return;
-    const command = (func: string, args: unknown[] = []) => win.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
     if (!this.youtubeSoundEnabled || volume <= 0) {
-      command('mute');
+      this.youtubeCommand('mute');
       return;
     }
-    command('unMute');
-    command('setVolume', [volume]);
+    this.youtubeCommand('unMute');
+    this.youtubeCommand('setVolume', [volume]);
+  }
+
+  youtubeCommand(func: string, args: unknown[] = []) {
+    const win = this.youtubeFrame?.nativeElement.contentWindow;
+    if (!win) return;
+    win.postMessage(JSON.stringify({ event: 'command', func, args }), 'https://www.youtube.com');
+  }
+
+  disableYoutubeCaptions() {
+    this.youtubeCommand('setOption', ['captions', 'track', {}]);
+    this.youtubeCommand('setOption', ['captions', 'fontSize', -1]);
+    this.youtubeCommand('unloadModule', ['captions']);
   }
 
   syncYoutubeSound() {
-    setTimeout(() => this.setYoutubeAudio(this.youtubeSoundEnabled ? 100 : 0), 300);
+    [300, 900, 1800].forEach(delay => setTimeout(() => {
+      this.disableYoutubeCaptions();
+      this.setYoutubeAudio(this.youtubeSoundEnabled ? 100 : 0);
+    }, delay));
   }
 
   normalizeRepeatCount(value: any) {

@@ -42,12 +42,19 @@ export class LoginComponent {
     try {
       const user = await this.auth.login(this.username, this.password);
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-      const target = returnUrl && returnUrl !== '/login' ? returnUrl : user?.roles.includes('admin') ? '/' : '/caller';
+      const isAdmin = !!user?.roles.includes('admin');
+      const target = this.loginTarget(returnUrl, isAdmin);
       await this.router.navigateByUrl(target);
     } catch {
       this.error = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
     } finally {
       this.loading = false;
     }
+  }
+
+  private loginTarget(returnUrl: string | null, isAdmin: boolean) {
+    if (!returnUrl || returnUrl === '/login') return isAdmin ? '/' : '/caller';
+    if (isAdmin && (returnUrl === '/caller' || returnUrl === '/caller-mobile')) return '/';
+    return returnUrl;
   }
 }

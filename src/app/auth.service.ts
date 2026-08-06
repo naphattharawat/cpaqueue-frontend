@@ -18,8 +18,8 @@ export class AuthService {
 
   constructor(private http: HttpClient) {}
 
-  async loadUser() {
-    if (this.loaded) return this.user$.value;
+  async loadUser(force = false) {
+    if (this.loaded && !force) return this.user$.value;
     try {
       const response = await firstValueFrom(this.http.get<any>(this.authUrl('/me')));
       this.user$.next(response.data || null);
@@ -44,7 +44,8 @@ export class AuthService {
   }
 
   isAdmin(user = this.user$.value) {
-    return !!user?.roles?.includes('admin');
+    const roles = Array.isArray(user?.roles) ? user.roles : String((user as any)?.roles || '').split(',');
+    return roles.map(role => String(role).trim().toLowerCase()).includes('admin');
   }
 
   private authUrl(path: string) {

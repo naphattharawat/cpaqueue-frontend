@@ -35,6 +35,11 @@ import { playAudioSequence } from './audio-playback.util';
             <h2><i class="fa-solid fa-hospital"></i> ข้อมูลจุดบริการ</h2>
             <label>ชื่อในระบบ <input [value]="selected.location_name" disabled></label>
             <label>ชื่อแสดงผล <input [(ngModel)]="selected.display_name" placeholder="ชื่อที่ต้องการให้แสดง"></label>
+            <label class="inline-check">
+              <input type="checkbox" [(ngModel)]="selected.pooled_call_enabled">
+              เรียกคิวแบบคิวรวม
+            </label>
+            <small>ถ้าเปิดใช้งาน หน้าเรียกคิวจะแสดงคิวทั้งหมดของจุดบริการ และเลือกแพทย์เป็นปลายทางตอนเรียก</small>
           </div>
 
           <div class="settings-section">
@@ -313,6 +318,7 @@ export class ServiceSettingsComponent implements OnInit {
       recorded_room_type: item.recorded_room_type || 'doctor_room',
       voice_rate: Number(item.voice_rate || 1),
       call_repeat_count: Math.min(5, Math.max(1, Number(item.call_repeat_count || 1))),
+      pooled_call_enabled: !!item.pooled_call_enabled,
       devices: (item.devices || []).map((d: any) => this.normalizeDevice(d)),
     };
   }

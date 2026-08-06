@@ -8,6 +8,7 @@ import { appUrl, wsUrl } from './app-url.util';
 export class QueueService {
   readonly events$ = new Subject<any>();
   private ws?: WebSocket;
+  private wsGeneration = 0;
 
   constructor(private http: HttpClient, private zone: NgZone) {}
 
@@ -51,12 +52,25 @@ export class QueueService {
   hold(body: any) { return this.http.post<any>(this.api('/hold'), body); }
   cancel(body: any) { return this.http.post<any>(this.api('/cancel'), body); }
 
-  connect(topics: string[]) {
+  connect(topics: string[], options: { deviceToken?: string } = {}) {
+    const generation = ++this.wsGeneration;
     this.ws?.close();
-    this.ws = new WebSocket(wsUrl(environment.wsBaseUrl, '/ws'));
-    this.ws.onopen = () => this.ws?.send(JSON.stringify({ type: 'subscribe', topics }));
-    this.ws.onmessage = ev => this.zone.run(() => this.events$.next(JSON.parse(ev.data)));
-    this.ws.onclose = () => setTimeout(() => this.connect(topics), 2000);
+    const socket = new WebSocket(wsUrl(environment.wsBaseUrl, '/ws'));
+    this.ws = socket;
+    socket.onopen = () => {
+      if (generation !== this.wsGeneration) return;
+      socket.send(JSON.stringify({ type: 'subscribe', topics, deviceToken: options.deviceToken || '' }));
+    };
+    socket.onmessage = ev => {
+      if (generation !== this.wsGeneration) return;
+      this.zone.run(() => this.events$.next(JSON.parse(ev.data)));
+    };
+    socket.onclose = () => {
+      if (generation !== this.wsGeneration) return;
+      setTimeout(() => {
+        if (generation === this.wsGeneration) this.connect(topics, options);
+      }, 2000);
+    };
   }
 
   mediaUrl(file: string) { return appUrl(environment.uploadBaseUrl, `/uploads/${file}`); }

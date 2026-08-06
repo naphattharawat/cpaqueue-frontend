@@ -2,6 +2,10 @@ export async function playAudioSequence(urls: string[], rate = 1) {
   if (!urls.length) return;
 
   const context = new AudioContext();
+  if (context.state === 'suspended') {
+    await context.close();
+    throw new DOMException('AudioContext was not allowed to start without a user gesture', 'NotAllowedError');
+  }
   const safeRate = Math.min(Math.max(Number(rate) || 1, 0.7), 1.5);
   const buffers = await Promise.all(urls.map(async url => {
     const response = await fetch(url);

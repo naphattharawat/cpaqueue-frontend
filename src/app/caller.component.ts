@@ -21,7 +21,7 @@ import { QueueService } from './queue.service';
         </select>
       </label>
 
-      <label class="doctor-filter">แพทย์
+      <label class="doctor-filter">{{pooledCallEnabled ? 'แพทย์ปลายทาง' : 'แพทย์'}}
         <div class="combo" [class.open]="doctorOpen">
           <button class="combo-trigger" type="button" (click)="doctorOpen=!doctorOpen">
             <span>{{doctorSummary}}</span>
@@ -33,14 +33,14 @@ import { QueueService } from './queue.service';
               <input [(ngModel)]="doctorQuery" placeholder="ค้นหาชื่อหรือรหัส..." />
             </div>
             <label class="combo-row" *ngFor="let d of filteredDoctors()">
-              <input type="checkbox" [checked]="selectedDoctorCodes.includes(d.code)" (change)="toggleDoctor(d.code, $any($event.target).checked)">
+              <input [type]="pooledCallEnabled ? 'radio' : 'checkbox'" name="caller_doctor" [checked]="selectedDoctorCodes.includes(d.code)" (change)="toggleDoctor(d.code, $any($event.target).checked)">
               <b>{{d.name}}</b>
               <small>{{d.room_number ? 'ห้อง ' + d.room_number : d.room_name}}</small>
             </label>
             <div class="combo-footer">
-              <span>เลือก {{selectedDoctorCodes.length}} คน</span>
+              <span>{{pooledCallEnabled ? 'เลือกแพทย์ปลายทาง' : 'เลือก ' + selectedDoctorCodes.length + ' คน'}}</span>
               <div class="combo-footer-actions">
-                <button type="button" (click)="selectAllDoctors()">เลือกทั้งหมด</button>
+                <button type="button" *ngIf="!pooledCallEnabled" (click)="selectAllDoctors()">เลือกทั้งหมด</button>
                 <button type="button" (click)="clearDoctors()">ล้าง</button>
               </div>
             </div>
@@ -61,6 +61,12 @@ import { QueueService } from './queue.service';
           <p><b>HN</b> {{selected.hn}}</p>
           <p><b>ห้อง</b> {{selected.room_name || '-'}}</p>
           <p><b>แพทย์</b> {{selected.doctor_name || '-'}}</p>
+          <div class="pooled-doctor-actions" *ngIf="pooledCallEnabled">
+            <b>เรียกเข้าห้องแพทย์</b>
+            <button type="button" *ngFor="let d of doctors" [disabled]="!doctorRoomId(d)" (click)="callQueueForDoctor(selected, d)">
+              {{d.name}} <span>{{d.room_number ? '#' + d.room_number : d.room_name}}</span>
+            </button>
+          </div>
 
           <ng-container *ngIf="selectedTab(selected) === 'waiting'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
@@ -115,6 +121,7 @@ import { QueueService } from './queue.service';
 export class CallerComponent implements OnInit {
   clock = '';
   locations: any[] = [];
+  locationConfigs: any[] = [];
   doctors: any[] = [];
   queues: any[] = [];
   selected: any = null;
@@ -124,6 +131,7 @@ export class CallerComponent implements OnInit {
   displayLink = '/display';
   doctorOpen = false;
   doctorQuery = '';
+  pooledCallEnabled = false;
   private loadQueuesWatchdog?: number;
 
   constructor(private api: QueueService) {}
@@ -132,6 +140,10 @@ export class CallerComponent implements OnInit {
     setInterval(() => this.clock = new Date().toTimeString().slice(0, 8), 1000);
     this.clock = new Date().toTimeString().slice(0, 8);
     this.api.locations().subscribe(r => this.locations = r.data);
+    this.api.locationConfigs().subscribe(r => {
+      this.locationConfigs = r.data || [];
+      this.applyLocationConfig();
+    });
     if (this.locationId) this.locationChanged(false);
     this.api.events$.subscribe(e => { if (e.type === 'queue.changed') this.loadQueues(); });
     this.api.connect(['queue:all']);
@@ -139,6 +151,10 @@ export class CallerComponent implements OnInit {
   }
 
   get doctorSummary() {
+    if (this.pooledCallEnabled) {
+      const doctor = this.selectedDestinationDoctor();
+      return doctor ? `${doctor.name}${doctor.room_number ? ' ห้อง ' + doctor.room_number : ''}` : '-- เลือกแพทย์ปลายทาง --';
+    }
     return this.selectedDoctorCodes.length ? `เลือก ${this.selectedDoctorCodes.length} คน` : '-- เลือกแพทย์ --';
   }
 
@@ -156,7 +172,10 @@ export class CallerComponent implements OnInit {
   }
 
   toggleDoctor(code: string, checked: boolean) {
-    this.selectedDoctorCodes = checked ? [...new Set([...this.selectedDoctorCodes, code])] : this.selectedDoctorCodes.filter(c => c !== code);
+    this.selectedDoctorCodes = this.pooledCallEnabled
+      ? (checked ? [code] : [])
+      : checked ? [...new Set([...this.selectedDoctorCodes, code])] : this.selectedDoctorCodes.filter(c => c !== code);
+    if (this.pooledCallEnabled) this.doctorOpen = false;
     this.doctorChanged();
   }
 
@@ -174,8 +193,22 @@ export class CallerComponent implements OnInit {
   locationChanged(clear = true) {
     localStorage.setItem('caller_location_id', this.locationId);
     if (clear) this.selectedDoctorCodes = [];
-    this.api.doctors(this.locationId).subscribe(r => this.doctors = r.data);
+    this.applyLocationConfig();
+    this.api.doctors(this.locationId).subscribe(r => {
+      this.doctors = r.data;
+      if (this.pooledCallEnabled && this.selectedDoctorCodes.length > 1) this.selectedDoctorCodes = this.selectedDoctorCodes.slice(0, 1);
+      this.updateDisplayLink();
+    });
     this.loadQueues();
+  }
+
+  applyLocationConfig() {
+    const config = this.locationConfigs.find(c => String(c.location_id) === String(this.locationId));
+    this.pooledCallEnabled = !!config?.pooled_call_enabled;
+    if (this.pooledCallEnabled && this.selectedDoctorCodes.length > 1) {
+      this.selectedDoctorCodes = this.selectedDoctorCodes.slice(0, 1);
+      localStorage.setItem('caller_doctor_codes', JSON.stringify(this.selectedDoctorCodes));
+    }
   }
 
   doctorChanged() {
@@ -187,7 +220,8 @@ export class CallerComponent implements OnInit {
   loadQueues() {
     this.resetLoadQueuesWatchdog();
     if (!this.locationId) return;
-    this.api.queues(this.locationId, this.selectedDoctorCodes.join(',')).subscribe(r => {
+    const doctorCodes = this.pooledCallEnabled ? '' : this.selectedDoctorCodes.join(',');
+    this.api.queues(this.locationId, doctorCodes).subscribe(r => {
       this.queues = r.data;
       this.updateDisplayLink();
     });
@@ -217,7 +251,19 @@ export class CallerComponent implements OnInit {
   }
 
   callQueue(q: any) {
-    this.api.call({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, queue_no: q.queue_slot_number }).subscribe(() => this.loadQueues());
+    const roomId = this.pooledCallEnabled ? this.destinationRoomId() : q.opd_qs_room_id;
+    if (!roomId) return window.alert('กรุณาเลือกแพทย์ปลายทางก่อนเรียกคิว');
+    this.callQueueToRoom(q, roomId);
+  }
+
+  callQueueForDoctor(q: any, doctor: any) {
+    const roomId = this.doctorRoomId(doctor);
+    if (!roomId) return;
+    this.callQueueToRoom(q, roomId);
+  }
+
+  callQueueToRoom(q: any, roomId: string) {
+    this.api.call({ slot_id: q.opd_qs_slot_id, room_id: roomId, location_id: this.locationId, queue_no: q.queue_slot_number }).subscribe(() => this.loadQueues());
   }
 
   holdQueue(q: any) {
@@ -240,11 +286,26 @@ export class CallerComponent implements OnInit {
   }
 
   updateDisplayLink() {
-    const doc = this.selectedDoctorCodes.join(',');
-    const rooms = [...new Set(this.queues.map(q => q.opd_qs_room_id).filter(Boolean))];
+    const doc = this.pooledCallEnabled ? '' : this.selectedDoctorCodes.join(',');
+    const sourceRooms = this.pooledCallEnabled
+      ? this.doctors.map(d => this.doctorRoomId(d))
+      : this.queues.map(q => q.opd_qs_room_id);
+    const rooms = [...new Set(sourceRooms.map(room => String(room || '').trim()).filter(Boolean))];
     this.displayLink = rooms.length > 1
       ? `/display-multi?location_id=${this.locationId}&room_ids=${rooms.join(',')}`
       : `/display?location_id=${this.locationId}${rooms[0] ? `&room_id=${rooms[0]}` : ''}${doc ? `&doctor_code=${doc}` : ''}`;
+  }
+
+  selectedDestinationDoctor() {
+    return this.doctors.find(d => String(d.code) === String(this.selectedDoctorCodes[0]));
+  }
+
+  destinationRoomId() {
+    return this.doctorRoomId(this.selectedDestinationDoctor());
+  }
+
+  doctorRoomId(doctor: any) {
+    return String(doctor?.opd_qs_room_id || doctor?.room_id || doctor?.call_opd_qs_room_id || '').trim();
   }
 
   @HostListener('document:keydown', ['$event'])
