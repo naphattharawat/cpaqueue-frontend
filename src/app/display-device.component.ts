@@ -68,7 +68,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
             <div class="room-row" *ngFor="let r of roomsData">
               <div class="room-number">{{r.room_number || r.room_id}}</div>
               <div class="queue-number" [class.active]="announcingRoomId === stringId(r.room_id) || (r.is_latest && r.active)">
-                {{displayNo(r.active) || '---'}}
+                {{roomDisplayNo(r) || '---'}}
               </div>
             </div>
           </div>
@@ -76,7 +76,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
       </section>
 
       <footer class="multi-display-footer">
-        <span>Design by JPSK</span>
+        <span> </span>
         <span></span>
         <span>กลุ่มภารกิจสุขภาพดิจิทัล โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
       </footer>
@@ -107,6 +107,7 @@ export class DisplayDeviceComponent implements OnInit {
   youtubeUrlCache = new Map<string, any>();
   initialLoadDone = false;
   lastActiveByRoom = new Map<string, string>();
+  displayedQueueByRoom = new Map<string, string>();
   announcingRoomId = '';
   forceAnnounceRooms = new Set<string>();
   audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string }> = [];
@@ -179,6 +180,8 @@ export class DisplayDeviceComponent implements OnInit {
           const activeSignature = this.activeSignature(room.active);
           const key = String(room.room_id);
           const previous = this.lastActiveByRoom.get(key) || '';
+          if (!this.initialLoadDone && activeNo) this.displayedQueueByRoom.set(key, activeNo);
+          if (this.initialLoadDone && activeNo && !this.hasQueuedRoom(key) && previous !== activeSignature) this.displayedQueueByRoom.set(key, previous ? (this.displayedQueueByRoom.get(key) || '') : activeNo);
           if (this.initialLoadDone && activeNo && (previous !== activeSignature || this.forceAnnounceRooms.has(key))) {
             this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key);
             this.forceAnnounceRooms.delete(key);
@@ -207,6 +210,11 @@ export class DisplayDeviceComponent implements OnInit {
     if (!q) return '';
     if (this.queueType === 'oqueue') return q.oqueue || q.queue_no || q.queue_slot_number || '';
     return q.queue_slot_number || q.queue_no || q.oqueue || '';
+  }
+
+  roomDisplayNo(room: any) {
+    const key = String(room?.room_id ?? '');
+    return this.displayedQueueByRoom.get(key) || this.displayNo(room?.active);
   }
 
   youtubeEmbed(item: any) {
@@ -299,6 +307,7 @@ export class DisplayDeviceComponent implements OnInit {
 
   async speakQueue(queueNo: string, roomNumber: string, roomId: string) {
     if (!this.voiceEnabled) return true;
+    this.displayedQueueByRoom.set(String(roomId), queueNo);
     this.announcingRoomId = roomId;
     this.duckYoutubeAudio(true);
     const roomDigits = String(roomNumber).replace(/\D/g, '');
@@ -379,6 +388,11 @@ export class DisplayDeviceComponent implements OnInit {
   normalizeRepeatCount(value: any) {
     const n = Math.round(Number(value));
     return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 1;
+  }
+
+  hasQueuedRoom(roomId: string) {
+    const key = String(roomId);
+    return this.audioQueueRunning && this.announcingRoomId === key || this.audioQueue.some(item => String(item.roomId) === key);
   }
 
   scheduleSlide() {
