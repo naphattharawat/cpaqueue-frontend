@@ -1,8 +1,8 @@
 export const environment = {
   production: true,
-  apiBaseUrl: '',
-  authBaseUrl: '',
-  ttsBaseUrl: '',
-  uploadBaseUrl: '',
-  wsBaseUrl: '',
+  apiBaseUrl: 'https://m.cpa.go.th/queue-api',
+  authBaseUrl: 'https://m.cpa.go.th/queue-api',
+  ttsBaseUrl: 'https://m.cpa.go.th/queue-api',
+  uploadBaseUrl: 'https://m.cpa.go.th/queue-api',
+  wsBaseUrl: 'ws://m.cpa.go.th/queue-api',
 };
