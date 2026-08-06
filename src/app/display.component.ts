@@ -32,7 +32,7 @@ import { appRouteUrl } from './app-url.util';
         </section>
       </section>
 
-      <footer><span>Design by JPSK</span><span>WebSocket live</span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
+      <footer><span> </span><span> </span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
     </main>
 
     <ng-template #setup>
