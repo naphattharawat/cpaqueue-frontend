@@ -33,6 +33,10 @@ import { appRouteUrl } from './app-url.util';
       </section>
 
       <footer><span> </span><span> </span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
+      <button class="sound-unlock" *ngIf="!audioUnlocked" (click)="unlockAudio()">
+        <i class="fa-solid fa-volume-high"></i>
+        <span>เปิดเสียงเรียกคิว</span>
+      </button>
     </main>
 
     <ng-template #setup>
@@ -83,6 +87,7 @@ export class DisplayComponent implements OnInit {
   dateText = '';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   announcing = false;
+  audioUnlocked = true;
   initialLoadDone = false;
   processed = new Map<string, string>();
   forceAnnounceRoomId = '';
@@ -196,14 +201,40 @@ export class DisplayComponent implements OnInit {
   }
 
   async speak(q: any) {
+    if (!this.audioUnlocked) return;
     this.announcing = true;
     const msg = `ขอเชิญหมายเลข ${String(this.displayNo(q)).split('').join(' ')} ที่ ${this.roomName} ค่ะ`;
     try {
       await this.playCallAudio(String(this.displayNo(q)), this.roomNumberFromName());
     } catch (err) {
       console.warn('TTS playback failed', err);
+      if (this.isAutoplayBlocked(err)) this.audioUnlocked = false;
     }
     setTimeout(() => this.announcing = false, 3000);
+  }
+
+  async unlockAudio() {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        const context = new AudioContextClass();
+        await context.resume();
+        await context.close();
+      }
+      const audio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=');
+      audio.volume = 0;
+      await audio.play();
+      audio.pause();
+      this.audioUnlocked = true;
+      if (this.active) await this.speak(this.active);
+    } catch (err) {
+      console.warn('Audio unlock failed', err);
+    }
+  }
+
+  isAutoplayBlocked(err: unknown) {
+    const text = `${(err as any)?.name || ''} ${(err as any)?.message || err || ''}`.toLowerCase();
+    return text.includes('notallowed') || text.includes('user gesture') || text.includes('not allowed to start') || text.includes('play() failed');
   }
 
   async playCallAudio(queueNo: string, roomNo: string) {
