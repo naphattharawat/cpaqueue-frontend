@@ -1,8 +1,15 @@
 export function appRouteUrl(path = '') {
-  const base = document.querySelector('base')?.getAttribute('href') || '/';
+  const base = appBasePath();
   const normalizedBase = base.endsWith('/') ? base : `${base}/`;
   const normalizedPath = path.replace(/^\/+/, '');
   return `${normalizedBase}${normalizedPath}`;
+}
+
+export function appBasePath() {
+  const base = document.querySelector('base')?.getAttribute('href') || '';
+  if (base && base !== '/' && base !== './') return base;
+  const firstSegment = location.pathname.split('/').filter(Boolean)[0] || '';
+  return firstSegment === 'queue' ? '/queue/' : '/';
 }
 
 export function appAbsoluteUrl(path = '') {
