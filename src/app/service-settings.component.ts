@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
-import { appAbsoluteUrl } from './app-url.util';
+import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -12,7 +12,7 @@ import { appAbsoluteUrl } from './app-url.util';
     <main class="service-settings">
       <div class="quick-toast" *ngIf="toastMessage">{{toastMessage}}</div>
       <header>
-        <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
+        <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
         <h1>ตั้งค่าจุดบริการ</h1>
         <div class="save-action">
           <button class="btn" [disabled]="!selected || locationSaving" (click)="saveLocation()">
@@ -147,6 +147,7 @@ import { appAbsoluteUrl } from './app-url.util';
   `,
 })
 export class ServiceSettingsComponent implements OnInit {
+  appRouteUrl = appRouteUrl;
   locations: any[] = [];
   rooms: any[] = [];
   audioFiles: any[] = [];

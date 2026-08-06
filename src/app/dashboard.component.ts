@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
+import { appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -9,7 +10,7 @@ import { QueueService } from './queue.service';
   template: `
     <main class="admin-dashboard">
       <header class="dashboard-header">
-        <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
+        <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
         <div>
           <h1>Dashboard</h1>
           <span>สรุปการใช้งานประจำวัน {{summary?.date || ''}}</span>
@@ -82,6 +83,7 @@ import { QueueService } from './queue.service';
   `,
 })
 export class DashboardComponent implements OnInit, OnDestroy {
+  appRouteUrl = appRouteUrl;
   summary: any = null;
   loading = false;
   lastLoadedAt = '';

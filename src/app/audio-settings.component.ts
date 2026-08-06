@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
+import { appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -9,7 +10,7 @@ import { QueueService } from './queue.service';
   template: `
     <main class="audio-settings">
       <header>
-        <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
+        <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
         <h1>ตั้งค่าไฟล์เสียง</h1>
         <div class="save-actions">
           <span [class.ok]="saveState === 'saved'">{{saveMessage}}</span>
@@ -44,6 +45,7 @@ import { QueueService } from './queue.service';
   `,
 })
 export class AudioSettingsComponent implements OnInit {
+  appRouteUrl = appRouteUrl;
   items: any[] = [];
   file?: File;
   label = '';

@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
+import { appRouteUrl } from './app-url.util';
 
 @Component({
   standalone: true,
@@ -10,7 +11,7 @@ import { QueueService } from './queue.service';
     <main class="media-manager">
       <div class="quick-toast" *ngIf="toastMessage">{{toastMessage}}</div>
       <header>
-        <a href="/" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
+        <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
         <h1>จัดการภาพสไลด์</h1>
         <button class="btn" (click)="saveMediaInfo()">บันทึกข้อมูลรูป</button>
       </header>
@@ -107,6 +108,7 @@ import { QueueService } from './queue.service';
   `,
 })
 export class MediaManagerComponent implements OnInit {
+  appRouteUrl = appRouteUrl;
   locations: any[] = [];
   items: any[] = [];
   file?: File;
