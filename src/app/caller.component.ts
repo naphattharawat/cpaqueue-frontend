@@ -39,7 +39,7 @@ import { appRouteUrl } from './app-url.util';
               <small>{{d.room_number ? 'ห้อง ' + d.room_number : d.room_name}}</small>
             </label>
             <div class="combo-footer">
-              <span>{{pooledCallEnabled ? 'เลือกแพทย์ปลายทาง' : 'เลือก ' + selectedDoctorCodes.length + ' คน'}}</span>
+              <span>{{pooledCallEnabled ? 'เลือกแพทย์ปลายทาง' : 'เลือก ' + selectedDoctorCount + ' คน'}}</span>
               <div class="combo-footer-actions">
                 <button type="button" *ngIf="!pooledCallEnabled" (click)="selectAllDoctors()">เลือกทั้งหมด</button>
                 <button type="button" (click)="clearDoctors()">ล้าง</button>
@@ -148,7 +148,17 @@ export class CallerComponent implements OnInit {
       this.applyLocationConfig();
     });
     if (this.locationId) this.locationChanged(false);
-    this.api.events$.subscribe(e => { if (e.type === 'queue.changed') this.loadQueues(); });
+    this.api.events$.subscribe(e => {
+      if (e.type !== 'queue.changed') return;
+      const slotId = String(e.payload?.slotId ?? '');
+      if (e.payload?.action === 'cancel' && slotId) {
+        this.queues = this.queues.filter(q => String(q.opd_qs_slot_id) !== slotId);
+        if (this.selected && String(this.selected.opd_qs_slot_id) === slotId) this.selected = null;
+        this.updateDisplayLink();
+      }
+      this.loadQueues();
+      window.setTimeout(() => this.loadQueues(), 300);
+    });
     this.api.connect(['queue:all']);
     this.resetLoadQueuesWatchdog();
   }
@@ -158,7 +168,11 @@ export class CallerComponent implements OnInit {
       const doctor = this.selectedDestinationDoctor();
       return doctor ? `${doctor.name}${doctor.room_number ? ' ห้อง ' + doctor.room_number : ''}` : '-- เลือกแพทย์ปลายทาง --';
     }
-    return this.selectedDoctorCodes.length ? `เลือก ${this.selectedDoctorCodes.length} คน` : '-- เลือกแพทย์ --';
+    return this.selectedDoctorCount ? `เลือก ${this.selectedDoctorCount} คน` : '-- เลือกแพทย์ --';
+  }
+
+  get selectedDoctorCount() {
+    return this.validSelectedDoctorCodes().length;
   }
 
   get counts() {
@@ -199,6 +213,7 @@ export class CallerComponent implements OnInit {
     this.applyLocationConfig();
     this.api.doctors(this.locationId).subscribe(r => {
       this.doctors = r.data;
+      this.normalizeSelectedDoctors();
       if (this.pooledCallEnabled && this.selectedDoctorCodes.length > 1) this.selectedDoctorCodes = this.selectedDoctorCodes.slice(0, 1);
       this.updateDisplayLink();
     });
@@ -215,15 +230,29 @@ export class CallerComponent implements OnInit {
   }
 
   doctorChanged() {
+    this.normalizeSelectedDoctors();
     localStorage.setItem('caller_doctor_codes', JSON.stringify(this.selectedDoctorCodes));
     this.updateDisplayLink();
     this.loadQueues();
   }
 
+  validSelectedDoctorCodes() {
+    const available = new Set(this.doctors.map(d => String(d.code)));
+    return this.selectedDoctorCodes.filter(code => !available.size || available.has(String(code)));
+  }
+
+  normalizeSelectedDoctors() {
+    const next = this.validSelectedDoctorCodes();
+    if (next.length !== this.selectedDoctorCodes.length) {
+      this.selectedDoctorCodes = next;
+      localStorage.setItem('caller_doctor_codes', JSON.stringify(this.selectedDoctorCodes));
+    }
+  }
+
   loadQueues() {
     this.resetLoadQueuesWatchdog();
     if (!this.locationId) return;
-    const doctorCodes = this.pooledCallEnabled ? '' : this.selectedDoctorCodes.join(',');
+    const doctorCodes = this.pooledCallEnabled ? '' : this.validSelectedDoctorCodes().join(',');
     this.api.queues(this.locationId, doctorCodes).subscribe(r => {
       this.queues = r.data;
       this.updateDisplayLink();
@@ -276,7 +305,10 @@ export class CallerComponent implements OnInit {
   cancelQueue(q: any) {
     this.api.cancel({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, location_id: this.locationId }).subscribe(() => {
       this.selected = null;
+      this.queues = this.queues.filter(item => String(item.opd_qs_slot_id) !== String(q.opd_qs_slot_id));
+      this.updateDisplayLink();
       this.loadQueues();
+      window.setTimeout(() => this.loadQueues(), 300);
     });
   }
 
@@ -289,7 +321,7 @@ export class CallerComponent implements OnInit {
   }
 
   updateDisplayLink() {
-    const doc = this.pooledCallEnabled ? '' : this.selectedDoctorCodes.join(',');
+    const doc = this.pooledCallEnabled ? '' : this.validSelectedDoctorCodes().join(',');
     const sourceRooms = this.pooledCallEnabled
       ? this.doctors.map(d => this.doctorRoomId(d))
       : this.queues.map(q => q.opd_qs_room_id);

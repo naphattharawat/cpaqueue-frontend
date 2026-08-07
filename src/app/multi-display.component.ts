@@ -4,7 +4,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
-import { playAudioSequence } from './audio-playback.util';
+import { abortError, playAudioSequence } from './audio-playback.util';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
 @Component({
@@ -77,7 +77,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
           <div class="room-board-scroll">
             <div class="room-row" *ngFor="let r of roomsData">
               <div class="room-number">{{r.room_number || r.room_id}}</div>
-              <div class="queue-number" [class.active]="announcingRoomId === stringId(r.room_id) || (r.is_latest && r.active)">
+              <div class="queue-number" [class.active]="announcingRoomId === stringId(r.room_id)">
                 {{roomDisplayNo(r) || '---'}}
               </div>
             </div>
@@ -173,9 +173,12 @@ export class MultiDisplayComponent implements OnInit {
   displayedQueueByRoom = new Map<string, string>();
   announcingRoomId = '';
   forceAnnounceRooms = new Set<string>();
-  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string }> = [];
+  suppressAnnounceRooms = new Set<string>();
+  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string }> = [];
   audioQueueRunning = false;
   recentlyQueuedAudio = new Set<string>();
+  playbackAbort?: AbortController;
+  currentAudio?: HTMLAudioElement;
   callRepeatCount = 1;
   settingsOpen = false;
   voiceEnabled = localStorage.getItem('display_voice_enabled') !== 'false';
@@ -207,8 +210,17 @@ export class MultiDisplayComponent implements OnInit {
       if (e.type === 'queue.changed' && this.roomIds) {
         const eventRoomId = String(e.payload?.roomId ?? '');
         const eventQueueNo = this.eventDisplayNo(e.payload);
-        if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
-          this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId);
+        const slotId = String(e.payload?.slotId ?? '');
+        if (e.payload?.action === 'cancel' && eventRoomId) {
+          this.suppressAnnounceRooms.add(eventRoomId);
+          if (slotId) this.audioQueue = this.audioQueue.filter(item => String(item.slotId || '') !== slotId);
+          this.stopAudioPlayback();
+          this.displayedQueueByRoom.delete(eventRoomId);
+          this.announcingRoomId = '';
+          this.roomsData = this.roomsData.map(room => String(room.room_id) === eventRoomId ? { ...room, active: null } : room);
+          this.calledList = this.calledList.filter(item => String(item.room_id) !== eventRoomId);
+        } else if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
+          this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId, slotId);
         } else if (e.payload?.action === 'call' && eventRoomId) {
           this.forceAnnounceRooms.add(eventRoomId);
         }
@@ -259,13 +271,17 @@ export class MultiDisplayComponent implements OnInit {
         const activeSignature = this.activeSignature(room.active);
         const key = String(room.room_id);
         const previous = this.lastActiveByRoom.get(key) || '';
+        const suppressRoom = this.suppressAnnounceRooms.has(key);
         if (!this.initialLoadDone && activeNo) this.displayedQueueByRoom.set(key, activeNo);
-        if (this.initialLoadDone && activeNo && !this.hasQueuedRoom(key) && previous !== activeSignature) this.displayedQueueByRoom.set(key, previous ? (this.displayedQueueByRoom.get(key) || '') : activeNo);
-        if (this.initialLoadDone && activeNo && (previous !== activeSignature || this.forceAnnounceRooms.has(key))) {
-          this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key);
+        if (suppressRoom) {
+          this.displayedQueueByRoom.set(key, activeNo || '');
+        } else if (this.initialLoadDone && activeNo && !this.hasQueuedRoom(key) && previous !== activeSignature) this.displayedQueueByRoom.set(key, previous ? (this.displayedQueueByRoom.get(key) || '') : activeNo);
+        if (!suppressRoom && this.initialLoadDone && activeNo && (previous !== activeSignature || this.forceAnnounceRooms.has(key))) {
+          this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key, String(room.active?.opd_qs_slot_id || ''));
           this.forceAnnounceRooms.delete(key);
         }
         this.lastActiveByRoom.set(key, activeSignature);
+        this.suppressAnnounceRooms.delete(key);
       }
       this.initialLoadDone = true;
     });
@@ -313,14 +329,16 @@ export class MultiDisplayComponent implements OnInit {
     return `${this.displayNo(q)}:${q.call_id || q.call_datetime || ''}`;
   }
 
-  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string, force = false) {
-    if (!this.voiceEnabled && !force) return;
-    const signature = `${queueNo}:${roomNumber}:${roomId}`;
+  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string, slotIdOrForce?: string | boolean, force = false) {
+    const slotId = typeof slotIdOrForce === 'string' ? slotIdOrForce : '';
+    const shouldForce = typeof slotIdOrForce === 'boolean' ? slotIdOrForce : force;
+    if (!this.voiceEnabled && !shouldForce) return;
+    const signature = `${queueNo}:${roomNumber}:${roomId}:${slotId || ''}`;
     if (this.recentlyQueuedAudio.has(signature)) return;
-    if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}` === signature)) return;
+    if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}:${item.slotId || ''}` === signature)) return;
     this.recentlyQueuedAudio.add(signature);
     window.setTimeout(() => this.recentlyQueuedAudio.delete(signature), 10000);
-    this.audioQueue.push({ queueNo, roomNumber, roomId });
+    this.audioQueue.push({ queueNo, roomNumber, roomId, slotId });
     this.processAudioQueue();
   }
 
@@ -375,12 +393,13 @@ export class MultiDisplayComponent implements OnInit {
     this.displayedQueueByRoom.set(String(roomId), queueNo);
     this.announcingRoomId = roomId;
     this.duckYoutubeAudio(true);
+    this.playbackAbort = new AbortController();
     const qSpelled = String(queueNo).split('').join(' ');
     const roomDigits = String(roomNumber).replace(/\D/g, '');
     const roomText = roomDigits ? `ห้องตรวจเบอร์ ${roomDigits}` : `ห้อง ${roomNumber}`;
     const msg = `ขอเชิญหมายเลข ${qSpelled} ที่ ${roomText} ค่ะ`;
     try {
-      await this.playCallAudio(queueNo, roomDigits || String(roomNumber));
+      await this.playCallAudio(queueNo, roomDigits || String(roomNumber), this.playbackAbort.signal);
       return true;
     } catch (err) {
       console.warn('TTS playback failed', err);
@@ -388,7 +407,7 @@ export class MultiDisplayComponent implements OnInit {
       return false;
     } finally {
       this.duckYoutubeAudio(false);
-      setTimeout(() => this.announcingRoomId = '', 3000);
+      if (this.announcingRoomId === roomId) this.announcingRoomId = '';
     }
   }
 
@@ -397,31 +416,49 @@ export class MultiDisplayComponent implements OnInit {
     return text.includes('notallowed') || text.includes('user gesture') || text.includes('not allowed to start') || text.includes('play() failed');
   }
 
-  async playCallAudio(queueNo: string, roomNo: string) {
+  async playCallAudio(queueNo: string, roomNo: string, signal?: AbortSignal) {
     const url = this.api.ttsUrl(`/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(this.locationId)}&room=${encodeURIComponent(roomNo)}`);
     const response = await fetch(url);
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const data = await response.json();
-      await this.playAudioFiles((data.files || []).map((file: string) => this.api.audioAssetUrl(file)), Number(data.voice_rate || 1));
+      await this.playAudioFiles((data.files || []).map((file: string) => this.api.audioAssetUrl(file)), Number(data.voice_rate || 1), signal);
       return;
     }
     const blob = await response.blob();
-    await this.playAudioUrl(URL.createObjectURL(blob), Number(response.headers.get('x-voice-rate') || 1));
+    await this.playAudioUrl(URL.createObjectURL(blob), Number(response.headers.get('x-voice-rate') || 1), signal);
   }
 
-  async playAudioFiles(files: string[], rate = 1) {
-    await playAudioSequence(files, rate);
+  async playAudioFiles(files: string[], rate = 1, signal?: AbortSignal) {
+    await playAudioSequence(files, rate, signal);
   }
 
-  playAudioUrl(url: string, rate = 1) {
+  playAudioUrl(url: string, rate = 1, signal?: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
       const audio = new Audio(url);
+      this.currentAudio = audio;
       audio.playbackRate = rate;
       audio.onended = () => resolve();
       audio.onerror = () => reject(new Error(`Cannot play audio: ${url}`));
+      signal?.addEventListener('abort', () => {
+        try { audio.pause(); } catch { /* ignore */ }
+        audio.src = '';
+        reject(abortError());
+      }, { once: true });
       audio.play().catch(reject);
     });
+  }
+
+  stopAudioPlayback() {
+    this.playbackAbort?.abort();
+    this.playbackAbort = undefined;
+    if (this.currentAudio) {
+      try { this.currentAudio.pause(); } catch { /* ignore */ }
+      this.currentAudio.src = '';
+      this.currentAudio = undefined;
+    }
+    this.audioQueue = [];
+    this.audioQueueRunning = false;
   }
 
   openSettings() {

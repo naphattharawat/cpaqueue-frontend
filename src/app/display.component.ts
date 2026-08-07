@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
-import { playAudioSequence } from './audio-playback.util';
+import { abortError, playAudioSequence } from './audio-playback.util';
 import { appRouteUrl } from './app-url.util';
 
 @Component({
@@ -88,14 +88,18 @@ export class DisplayComponent implements OnInit {
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   announcing = false;
   audioUnlocked = true;
-  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string }> = [];
+  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string }> = [];
   audioQueueRunning = false;
   recentlyQueuedAudio = new Set<string>();
+  playbackAbort?: AbortController;
+  currentAudio?: HTMLAudioElement;
   callRepeatCount = 1;
   initialLoadDone = false;
   processed = new Map<string, string>();
   forceAnnounceRoomId = '';
+  suppressAnnounceRoomId = '';
   displayedCurrentNumber = '';
+  canceledSlotIds = new Set<string>();
 
   constructor(private route: ActivatedRoute, private api: QueueService) {}
 
@@ -128,7 +132,17 @@ export class DisplayComponent implements OnInit {
     this.api.events$.subscribe(e => {
       if (e.type === 'queue.changed' && this.roomId) {
         const eventRoomId = String(e.payload?.roomId ?? '');
-        if (e.payload?.action === 'call' && (!eventRoomId || eventRoomId === String(this.roomId))) {
+        const slotId = String(e.payload?.slotId ?? '');
+        if (e.payload?.action === 'cancel' && (!eventRoomId || eventRoomId === String(this.roomId))) {
+          this.suppressAnnounceRoomId = eventRoomId || String(this.roomId);
+          if (slotId) this.canceledSlotIds.add(slotId);
+          this.audioQueue = this.audioQueue.filter(item => !slotId || String(item.slotId || '') !== slotId);
+          this.stopAudioPlayback();
+          this.active = null;
+          this.holdQueues = [];
+          this.displayedCurrentNumber = this.active ? this.displayNo(this.active) : '';
+          this.announcing = false;
+        } else if (e.payload?.action === 'call' && (!eventRoomId || eventRoomId === String(this.roomId))) {
           this.forceAnnounceRoomId = this.initialLoadDone ? (eventRoomId || String(this.roomId)) : '';
         }
         this.load();
@@ -175,19 +189,22 @@ export class DisplayComponent implements OnInit {
     this.roomName = r.room_info?.display_location_name || r.room_info?.opd_qs_room_name || '';
     this.doctorName = r.room_info?.doctor_name || '';
     this.locationName = r.room_info?.opd_qs_location_name || '';
+    const suppressRoom = this.suppressAnnounceRoomId && this.suppressAnnounceRoomId === String(this.roomId);
     if (!this.initialLoadDone && this.active) this.displayedCurrentNumber = this.displayNo(this.active);
+    if (suppressRoom) this.displayedCurrentNumber = this.active ? this.displayNo(this.active) : '';
 
     for (const q of r.active_list || []) {
       const key = String(q.opd_qs_slot_id);
       const signature = this.callSignature(q);
       const lastSignature = this.processed.get(key);
       const shouldForceAnnounce = this.forceAnnounceRoomId && this.forceAnnounceRoomId === String(this.roomId) && q === this.active;
-      if (this.initialLoadDone && ((!lastSignature || lastSignature !== signature) || shouldForceAnnounce)) {
-        this.enqueueQueueAudio(String(this.displayNo(q)), this.roomNumberFromName(), String(this.roomId));
+      if (!suppressRoom && this.initialLoadDone && ((!lastSignature || lastSignature !== signature) || shouldForceAnnounce) && !this.canceledSlotIds.has(String(q.opd_qs_slot_id))) {
+        this.enqueueQueueAudio(String(this.displayNo(q)), this.roomNumberFromName(), String(this.roomId), String(q.opd_qs_slot_id));
       }
       this.processed.set(key, signature);
     }
     this.forceAnnounceRoomId = '';
+    this.suppressAnnounceRoomId = '';
     this.initialLoadDone = true;
   }
 
@@ -207,13 +224,13 @@ export class DisplayComponent implements OnInit {
     return this.queueType === 'oqueue' ? `(Z: ${q.queue_slot_number})` : q.oqueue ? `(O: ${q.oqueue})` : '(ไม่มี O)';
   }
 
-  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string) {
-    const signature = `${queueNo}:${roomNumber}:${roomId}`;
+  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string, slotId?: string) {
+    const signature = `${queueNo}:${roomNumber}:${roomId}:${slotId || ''}`;
     if (this.recentlyQueuedAudio.has(signature)) return;
-    if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}` === signature)) return;
+    if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}:${item.slotId || ''}` === signature)) return;
     this.recentlyQueuedAudio.add(signature);
     window.setTimeout(() => this.recentlyQueuedAudio.delete(signature), 10000);
-    this.audioQueue.push({ queueNo, roomNumber, roomId });
+    this.audioQueue.push({ queueNo, roomNumber, roomId, slotId });
     this.processAudioQueue();
   }
 
@@ -243,8 +260,10 @@ export class DisplayComponent implements OnInit {
     if (!this.audioUnlocked) return false;
     this.displayedCurrentNumber = queueNo;
     this.announcing = true;
+    this.stopAudioPlayback();
+    this.playbackAbort = new AbortController();
     try {
-      await this.playCallAudio(queueNo, roomNumber);
+      await this.playCallAudio(queueNo, roomNumber, this.playbackAbort.signal);
       return true;
     } catch (err) {
       console.warn('TTS playback failed', err);
@@ -293,31 +312,49 @@ export class DisplayComponent implements OnInit {
     return text.includes('notallowed') || text.includes('user gesture') || text.includes('not allowed to start') || text.includes('play() failed');
   }
 
-  async playCallAudio(queueNo: string, roomNo: string) {
+  async playCallAudio(queueNo: string, roomNo: string, signal?: AbortSignal) {
     const url = this.api.ttsUrl(`/call?queue=${encodeURIComponent(queueNo)}&location_id=${encodeURIComponent(this.locationId)}&room=${encodeURIComponent(roomNo)}`);
     const response = await fetch(url);
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const data = await response.json();
-      await this.playAudioFiles((data.files || []).map((file: string) => this.api.audioAssetUrl(file)), Number(data.voice_rate || 1));
+      await this.playAudioFiles((data.files || []).map((file: string) => this.api.audioAssetUrl(file)), Number(data.voice_rate || 1), signal);
       return;
     }
     const blob = await response.blob();
-    await this.playAudioUrl(URL.createObjectURL(blob), Number(response.headers.get('x-voice-rate') || 1));
+    await this.playAudioUrl(URL.createObjectURL(blob), Number(response.headers.get('x-voice-rate') || 1), signal);
   }
 
-  async playAudioFiles(files: string[], rate = 1) {
-    await playAudioSequence(files, rate);
+  async playAudioFiles(files: string[], rate = 1, signal?: AbortSignal) {
+    await playAudioSequence(files, rate, signal);
   }
 
-  playAudioUrl(url: string, rate = 1) {
+  playAudioUrl(url: string, rate = 1, signal?: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
       const audio = new Audio(url);
+      this.currentAudio = audio;
       audio.playbackRate = rate;
       audio.onended = () => resolve();
       audio.onerror = () => reject(new Error(`Cannot play audio: ${url}`));
+      signal?.addEventListener('abort', () => {
+        try { audio.pause(); } catch { /* ignore */ }
+        audio.src = '';
+        reject(abortError());
+      }, { once: true });
       audio.play().catch(reject);
     });
+  }
+
+  stopAudioPlayback() {
+    this.playbackAbort?.abort();
+    this.playbackAbort = undefined;
+    if (this.currentAudio) {
+      try { this.currentAudio.pause(); } catch { /* ignore */ }
+      this.currentAudio.src = '';
+      this.currentAudio = undefined;
+    }
+    this.audioQueue = [];
+    this.audioQueueRunning = false;
   }
 
   roomNumberFromName() {

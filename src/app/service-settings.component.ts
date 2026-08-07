@@ -105,7 +105,11 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
               <select [(ngModel)]="draftDevice.device_type">
                 <option value="multi">จอรวม</option>
                 <option value="single">จอเดี่ยว</option>
+                <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
               </select>
+              <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
+                <input type="number" min="1" max="12" step="1" [(ngModel)]="draftDevice.settings.queue_limit" placeholder="จำนวนคิว">
+              </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="draftDevice.room_ids">
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
@@ -120,9 +124,13 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
                 <select [(ngModel)]="d.device_type">
                   <option value="multi">จอรวม</option>
                   <option value="single">จอเดี่ยว</option>
+                  <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
                 </select>
                 <label class="inline-check"><input type="checkbox" [(ngModel)]="d.active"> active</label>
               </div>
+              <label *ngIf="d.device_type === 'room-list'">จำนวนคิวต่อห้อง
+                <input type="number" min="1" max="12" step="1" [(ngModel)]="d.settings.queue_limit" placeholder="จำนวนคิว">
+              </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="d.room_ids">
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
@@ -218,6 +226,7 @@ export class ServiceSettingsComponent implements OnInit {
       room_ids: [],
       allowed_ips_text: '',
       active: true,
+      settings: { queue_limit: 6 },
     };
   }
 
@@ -299,6 +308,7 @@ export class ServiceSettingsComponent implements OnInit {
   devicePayload(device: any) {
     return {
       ...device,
+      settings: { ...(device.settings || {}), queue_limit: Math.min(12, Math.max(1, Number(device.settings?.queue_limit || 6))) },
       allowed_ips: String(device.allowed_ips_text || '').split(',').map(ip => ip.trim()).filter(Boolean),
     };
   }
@@ -326,7 +336,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   normalizeDevice(device: any) {
-    return { ...device, allowed_ips_text: (device.allowed_ips || []).join(',') };
+    return { ...device, settings: { queue_limit: 6, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
   }
 
   stringId(id: unknown) {

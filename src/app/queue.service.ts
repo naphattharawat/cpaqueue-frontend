@@ -21,6 +21,7 @@ export class QueueService {
   dashboardSummary() { return this.http.get<any>(this.api('/dashboard/summary')); }
   display(params: Record<string, string>) { return this.http.get<any>(this.api('/display'), { params: new HttpParams({ fromObject: params }) }); }
   displayMulti(room_ids: string) { return this.http.get<any>(this.api('/display-multi'), { params: { room_ids } }); }
+  displayRoomList(room_ids: string, limit = 6) { return this.http.get<any>(this.api('/display-room-list'), { params: { room_ids, limit } }); }
   checkQueue(q: string) { return this.http.get<any>(this.api('/check-queue'), { params: { q } }); }
   media(location_id = '', manage = false) {
     const params: Record<string, string> = {};
