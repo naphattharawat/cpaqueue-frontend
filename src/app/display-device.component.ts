@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, HostListener, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
@@ -36,7 +36,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         <div class="display-card active-card" [class.called]="isLastCalledRoom(singleRoom)" [class.pulse]="announcingRoomId === stringId(singleRoom?.room_id)" [ngStyle]="queueColorStyle()">
           <span>หมายเลขรับบริการปัจจุบัน</span>
           <strong>{{singleCurrentNumber}}</strong>
-          <b>{{singleCurrentNumber !== '---' ? 'เรียกหมายเลข' : 'รอเรียกคิว'}}</b>
+          <b>{{singleCurrentNumber !== '---' ? singleDestinationText : 'รอเรียกคิว'}}</b>
         </div>
 
         <section class="hold-strip" *ngIf="calledList.length">
@@ -131,6 +131,8 @@ export class DisplayDeviceComponent implements OnInit {
   @ViewChild('youtubeFrame') youtubeFrame?: ElementRef<HTMLIFrameElement>;
 
   token = '';
+  previewId = '';
+  demoMode = false;
   device: any = null;
   loading = true;
   error = false;
@@ -177,17 +179,22 @@ export class DisplayDeviceComponent implements OnInit {
 
   ngOnInit() {
     const queryToken = this.route.snapshot.queryParamMap.get('token') || '';
+    this.previewId = this.route.snapshot.queryParamMap.get('preview_id') || '';
+    this.demoMode = this.previewId !== '' && this.route.snapshot.queryParamMap.get('demo') === '1';
     if (queryToken) {
       sessionStorage.setItem('display_device_token', queryToken);
       history.replaceState({}, '', appRouteUrl('/display-device'));
     }
     this.token = queryToken || sessionStorage.getItem('display_device_token') || '';
-    if (!this.token) {
+    if (!this.token && !this.previewId) {
       this.showError('ไม่พบ token ใน URL');
       return;
     }
 
-    this.api.resolveDisplayDevice(this.token).subscribe({
+    const deviceRequest = this.previewId
+      ? this.api.previewDisplayDevice(this.previewId)
+      : this.api.resolveDisplayDevice(this.token);
+    deviceRequest.subscribe({
       next: r => {
         this.device = r.data;
         if (!this.device?.room_ids?.length) {
@@ -197,9 +204,16 @@ export class DisplayDeviceComponent implements OnInit {
         this.loading = false;
         this.loadBoard();
         this.loadMedia();
-        this.api.connect(this.device.room_ids.map((id: any) => `room:${id}`), { deviceToken: this.token });
+        if (!this.demoMode) {
+          this.api.connect(
+            this.device.room_ids.map((id: any) => `room:${id}`),
+            this.previewId ? {} : { deviceToken: this.token },
+          );
+        }
       },
-      error: err => this.showError(err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'ไม่พบ device token หรือ token ถูกปิดใช้งาน'),
+      error: err => this.showError(this.previewId
+        ? (err?.status === 401 || err?.status === 403 ? 'กรุณาเข้าสู่ระบบด้วยสิทธิ์ admin เพื่อดูตัวอย่าง' : 'ไม่พบ device สำหรับดูตัวอย่าง')
+        : (err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'ไม่พบ device token หรือ token ถูกปิดใช้งาน')),
     });
 
     this.api.events$.subscribe(e => {
@@ -233,8 +247,18 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   loadBoard() {
-    this.api.displayDevice(this.token).subscribe({
+    const displayRequest = this.previewId
+      ? this.api.previewDisplayDeviceData(this.previewId)
+      : this.api.displayDevice(this.token);
+    displayRequest.subscribe({
       next: r => {
+        if (this.demoMode && !this.initialLoadDone) {
+          r = {
+            ...r,
+            rooms_data: (r.rooms_data || []).map((room: any) => ({ ...room, active: null, queues: [] })),
+            called_list: [],
+          };
+        }
         this.singleData = this.isSingleMode ? r : null;
         this.roomsData = r.rooms_data || [];
         this.calledList = r.called_list || [];
@@ -265,6 +289,28 @@ export class DisplayDeviceComponent implements OnInit {
       },
       error: err => this.showError(err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'โหลดข้อมูลหน้าจอไม่สำเร็จ'),
     });
+  }
+
+  @HostListener('window:message', ['$event'])
+  onPreviewMessage(event: MessageEvent) {
+    if (!this.demoMode || event.origin !== location.origin || event.data?.type !== 'cpaqueue.preview.call') return;
+    const roomId = String(event.data.roomId || '');
+    const queueNo = String(event.data.queueNo || '').trim();
+    const room = this.roomsData.find(item => String(item.room_id) === roomId);
+    if (!room || !queueNo) return;
+    const mockCall = {
+      call_id: `preview-${Date.now()}-${roomId}`,
+      opd_qs_slot_id: `preview-${Date.now()}-${roomId}`,
+      oqueue: queueNo,
+      queue_no: queueNo,
+      queue_slot_number: queueNo,
+      call_datetime: new Date().toISOString(),
+    };
+    this.roomsData = this.roomsData.map(item => String(item.room_id) === roomId
+      ? { ...item, active: mockCall, queues: [mockCall, ...(item.queues || [])].slice(0, Number(this.device?.settings?.queue_limit || 6)) }
+      : item);
+    this.enqueueQueueAudio(queueNo, String(event.data.roomNumber || room.room_number || roomId), roomId, mockCall.opd_qs_slot_id);
+    this.cdr.detectChanges();
   }
 
   loadMedia() {
@@ -344,6 +390,12 @@ export class DisplayDeviceComponent implements OnInit {
 
   get singleRoomName() {
     return this.singleRoom?.room_name || `ห้อง ${this.singleRoom?.room_number || ''}`.trim();
+  }
+
+  get singleDestinationText() {
+    const label = String(this.displaySettings?.destination_label || 'ห้องตรวจ').trim();
+    const roomNumber = String(this.singleRoom?.room_number || this.singleRoom?.room_id || '').trim();
+    return `${label.startsWith('ที่') ? '' : 'ที่ '}${label}${roomNumber ? ` ${roomNumber}` : ''}`.trim();
   }
 
   get singleLocationName() {

@@ -200,6 +200,7 @@ import { displayFontFamily } from './display-color.util';
               </label>
               <div class="device-actions">
                 <button class="btn" (click)="saveDevice(d)">บันทึก device</button>
+                <a class="btn preview" [href]="previewDeviceUrl(d.device_id)" target="_blank"><i class="fa-solid fa-eye"></i> ดูตัวอย่าง</a>
                 <button class="btn muted" (click)="rotateToken(d)">Rotate token</button>
                 <button class="btn danger" (click)="deleteDevice(d)">ลบ</button>
               </div>
@@ -238,7 +239,9 @@ export class ServiceSettingsComponent implements OnInit {
   ngOnInit() {
     this.api.locationConfigs().subscribe(r => {
       this.locations = (r.data || []).map((item: any) => this.normalizeLocation(item));
-      if (this.locations[0]) this.selectLocation(this.locations[0]);
+      const savedLocationId = localStorage.getItem('service_settings_location_id') || '';
+      const savedLocation = this.locations.find(location => String(location.location_id) === savedLocationId);
+      if (savedLocation || this.locations[0]) this.selectLocation(savedLocation || this.locations[0]);
     });
     this.loadAudioFiles();
   }
@@ -291,6 +294,7 @@ export class ServiceSettingsComponent implements OnInit {
 
   selectLocation(location: any) {
     this.selected = location;
+    localStorage.setItem('service_settings_location_id', String(location.location_id));
     this.draftDevice = null;
     this.testRoomId = '';
     this.locationSaveStatus = '';
@@ -305,7 +309,9 @@ export class ServiceSettingsComponent implements OnInit {
     window.clearTimeout(this.locationSaveTimer);
     this.locationSaving = true;
     this.locationSaveStatus = 'กำลังบันทึก...';
-    this.api.updateLocationConfig(this.selected.location_id, this.selected).subscribe({
+    const destinationAudio = this.audioFiles.find(item => item.key === this.selected.recorded_room_type);
+    const payload = { ...this.selected, recorded_room_label: destinationAudio?.label || this.selected.recorded_room_label || '' };
+    this.api.updateLocationConfig(this.selected.location_id, payload).subscribe({
       next: r => {
         const next = this.normalizeLocation(r.data);
         this.locations = this.locations.map(l => l.location_id === next.location_id ? next : l);
@@ -424,6 +430,10 @@ export class ServiceSettingsComponent implements OnInit {
     return appAbsoluteUrl(`/display-device?token=${encodeURIComponent(token)}`);
   }
 
+  previewDeviceUrl(deviceId: string | number) {
+    return appAbsoluteUrl(`/display-preview?device_id=${encodeURIComponent(String(deviceId))}`);
+  }
+
   showToast(message: string) {
     window.clearTimeout(this.toastTimer);
     this.toastMessage = message;
@@ -434,6 +444,7 @@ export class ServiceSettingsComponent implements OnInit {
     return {
       ...item,
       google_room_label: item.google_room_label || item.settings?.google_room_label || 'ห้องตรวจ',
+      recorded_room_label: item.recorded_room_label || item.settings?.recorded_room_label || '',
       recorded_room_type: item.recorded_room_type || 'doctor_room',
       recorded_number_mode: item.recorded_number_mode === 'number' ? 'number' : 'digits',
       queue_colors: { ...this.defaultQueueColors(), ...(item.queue_colors || item.settings?.queue_colors || {}) },

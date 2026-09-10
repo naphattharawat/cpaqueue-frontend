@@ -8,6 +8,7 @@ import { MediaManagerComponent } from './media-manager.component';
 import { ServiceSettingsComponent } from './service-settings.component';
 import { AudioSettingsComponent } from './audio-settings.component';
 import { DisplayDeviceComponent } from './display-device.component';
+import { DisplayPreviewComponent } from './display-preview.component';
 import { RoomListDisplayComponent } from './room-list-display.component';
 import { DashboardComponent } from './dashboard.component';
 import { LoginComponent } from './login.component';
@@ -22,6 +23,7 @@ export const routes: Routes = [
   { path: 'display-multi', component: MultiDisplayComponent, canActivate: [adminGuard] },
   { path: 'display-room-list', component: RoomListDisplayComponent, canActivate: [adminGuard] },
   { path: 'display-device', component: DisplayDeviceComponent },
+  { path: 'display-preview', component: DisplayPreviewComponent, canActivate: [adminGuard] },
   { path: 'check-queue', component: CheckQueueComponent },
   { path: 'dashboard', component: DashboardComponent, canActivate: [adminGuard] },
   { path: 'media-manager', component: MediaManagerComponent, canActivate: [adminGuard] },
