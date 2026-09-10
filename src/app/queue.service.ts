@@ -39,7 +39,9 @@ export class QueueService {
   locationConfigs() { return this.http.get<any>(this.api('/location-configs')); }
   voiceTypes() { return this.http.get<any>(this.api('/location-configs/voice-types')); }
   updateLocationConfig(locationId: string, body: any) { return this.http.put<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}`), body); }
-  audioFiles() { return this.http.get<any>(this.api('/audio-files')); }
+  audioFiles(destinationOnly = false) {
+    return this.http.get<any>(this.api('/audio-files'), { params: destinationOnly ? { destination: '1' } : {} });
+  }
   uploadAudio(body: FormData) { return this.http.post<any>(this.api('/audio-files'), body); }
   updateAudioFiles(items: any[]) { return this.http.put<any>(this.api('/audio-files'), { items }); }
   deleteAudioFile(file: string) { return this.http.delete<any>(this.api(`/audio-files/${encodeURIComponent(file)}`)); }

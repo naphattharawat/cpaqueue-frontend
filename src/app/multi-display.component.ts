@@ -1,23 +1,24 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { abortError, playAudioSequence } from './audio-playback.util';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
+import { displayFontVariables, queueColorVariables } from './display-color.util';
 
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <main class="multi-display-page">
+    <main class="multi-display-page" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
           <a [href]="appRouteUrl('/')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
           <h1>{{title}}</h1>
         </div>
-        <div class="multi-clock">เวลา&nbsp; {{clock}} <span>{{dateText}}</span></div>
+        <div class="multi-clock">เวลา&nbsp; {{clock}}</div>
         <div class="multi-tools">
           <button title="ตั้งค่า" (click)="openSettings()"><i class="fa-solid fa-gear"></i></button>
           <button title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
@@ -37,7 +38,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
             ห้อง #{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}
           </label>
         </div>
-        <button class="btn" (click)="startBoard()">เปิดหน้าจอแสดงคิวรวม</button>
+        <button class="btn" (click)="startBoard()">เปิดหน้าจอแสดงหมายเลขรับบริการรวม</button>
       </section>
 
       <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" *ngIf="roomIds">
@@ -54,10 +55,10 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
           <div class="called-panel">
             <div class="called-label">
               <i class="fa-solid fa-bullhorn"></i>
-              <b>เรียกแล้ว<br>ไม่พบ</b>
+              <b>เรียกแล้วไม่พบ</b>
             </div>
             <div class="called-list">
-              <div class="called-chip" *ngFor="let c of calledList">
+              <div class="called-chip" *ngFor="let c of calledList" [ngStyle]="queueColorStyle()">
                 <strong>{{displayNo(c)}}</strong><span>#{{c.room_number || c.room_id}}</span>
               </div>
             </div>
@@ -70,14 +71,14 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
         <aside class="room-board">
           <div class="room-board-head">
-            <span>ห้อง</span><span>คิวรับบริการ</span>
-            <span class="portrait-extra">ห้อง</span><span class="portrait-extra">คิวรับบริการ</span>
-            <span class="portrait-extra portrait-third">ห้อง</span><span class="portrait-extra portrait-third">คิวรับบริการ</span>
+            <span>ห้อง</span><span>หมายเลขรับบริการ</span>
+            <span class="portrait-extra">ห้อง</span><span class="portrait-extra">หมายเลขรับบริการ</span>
+            <span class="portrait-extra portrait-third">ห้อง</span><span class="portrait-extra portrait-third">หมายเลขรับบริการ</span>
           </div>
           <div class="room-board-scroll">
-            <div class="room-row" *ngFor="let r of roomsData">
+            <div class="room-row" *ngFor="let r of roomsData" [ngStyle]="queueColorStyle()">
               <div class="room-number">{{r.room_number || r.room_id}}</div>
-              <div class="queue-number" [class.active]="announcingRoomId === stringId(r.room_id)">
+              <div class="queue-number" [class.called]="isLastCalledRoom(r)" [class.active]="announcingRoomId === stringId(r.room_id)">
                 {{roomDisplayNo(r) || '---'}}
               </div>
             </div>
@@ -161,8 +162,7 @@ export class MultiDisplayComponent implements OnInit {
   roomsData: any[] = [];
   calledList: any[] = [];
   clock = '';
-  dateText = '';
-  title = 'หน้าจอคิวรวม';
+  title = 'หน้าจอแสดงหมายเลขรับบริการรวม';
   media: any[] = [];
   currentMedia: any = null;
   mediaIndex = 0;
@@ -172,6 +172,8 @@ export class MultiDisplayComponent implements OnInit {
   lastActiveByRoom = new Map<string, string>();
   displayedQueueByRoom = new Map<string, string>();
   announcingRoomId = '';
+  lastCalledRoomId = '';
+  displaySettings: any = {};
   forceAnnounceRooms = new Set<string>();
   suppressAnnounceRooms = new Set<string>();
   audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string }> = [];
@@ -186,9 +188,14 @@ export class MultiDisplayComponent implements OnInit {
   youtubeSoundEnabled = localStorage.getItem('display_youtube_sound_enabled') === 'true';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   themeName = localStorage.getItem('display_theme') || 'green';
-  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(appAbsoluteUrl('/check-queue'))}`;
+  qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=384x384&data=${encodeURIComponent(appAbsoluteUrl('/check-queue'))}`;
 
-  constructor(private route: ActivatedRoute, public api: QueueService, private sanitizer: DomSanitizer) {}
+  constructor(
+    private route: ActivatedRoute,
+    public api: QueueService,
+    private sanitizer: DomSanitizer,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   appRouteUrl = appRouteUrl;
 
@@ -199,6 +206,7 @@ export class MultiDisplayComponent implements OnInit {
       this.initialLoadDone = false;
       this.lastActiveByRoom.clear();
       this.displayedQueueByRoom.clear();
+      this.lastCalledRoomId = '';
       if (this.roomIds) {
         this.loadBoard();
         this.loadMedia();
@@ -217,6 +225,7 @@ export class MultiDisplayComponent implements OnInit {
           this.stopAudioPlayback();
           this.displayedQueueByRoom.delete(eventRoomId);
           this.announcingRoomId = '';
+          if (this.lastCalledRoomId === eventRoomId) this.lastCalledRoomId = '';
           this.roomsData = this.roomsData.map(room => String(room.room_id) === eventRoomId ? { ...room, active: null } : room);
           this.calledList = this.calledList.filter(item => String(item.room_id) !== eventRoomId);
         } else if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
@@ -265,7 +274,8 @@ export class MultiDisplayComponent implements OnInit {
       this.roomsData = r.rooms_data || [];
       this.calledList = r.called_list || [];
       this.callRepeatCount = this.normalizeRepeatCount(r.call_repeat_count);
-      this.title = this.roomsData[0]?.location_name ? `หน้าจอคิวรวม ${this.roomsData[0].location_name}` : 'หน้าจอคิวรวม';
+      this.displaySettings = r.display_settings || {};
+      this.title = this.roomsData[0]?.location_name ? `หน้าจอแสดงหมายเลขรับบริการรวม ${this.roomsData[0].location_name}` : 'หน้าจอแสดงหมายเลขรับบริการรวม';
       for (const room of this.roomsData) {
         const activeNo = this.displayNo(room.active);
         const activeSignature = this.activeSignature(room.active);
@@ -284,6 +294,7 @@ export class MultiDisplayComponent implements OnInit {
         this.suppressAnnounceRooms.delete(key);
       }
       this.initialLoadDone = true;
+      if (!this.lastCalledRoomId) this.lastCalledRoomId = this.latestRoomIdFromData();
     });
   }
 
@@ -295,7 +306,26 @@ export class MultiDisplayComponent implements OnInit {
 
   roomDisplayNo(room: any) {
     const key = String(room?.room_id ?? '');
-    return this.displayedQueueByRoom.get(key) || this.displayNo(room?.active);
+    return this.displayedQueueByRoom.get(key) || (!this.initialLoadDone ? this.displayNo(room?.active) : '');
+  }
+
+  isLastCalledRoom(room: any) {
+    const key = String(room?.room_id ?? '');
+    return !!key && this.lastCalledRoomId === key;
+  }
+
+  queueColorStyle() {
+    return queueColorVariables(this.displaySettings?.queue_colors, this.displaySettings?.queue_font_weight);
+  }
+
+  get displayFontStyle() {
+    return displayFontVariables(this.displaySettings?.display_font_family);
+  }
+
+  latestRoomIdFromData() {
+    return [...this.roomsData]
+      .filter(room => this.displayNo(room?.active))
+      .sort((a, b) => new Date(b.active?.call_datetime || b.active?.logged_at || 0).getTime() - new Date(a.active?.call_datetime || a.active?.logged_at || 0).getTime())[0]?.room_id?.toString() || '';
   }
 
   youtubeEmbed(item: any) {
@@ -392,6 +422,7 @@ export class MultiDisplayComponent implements OnInit {
     if (!this.voiceEnabled && !this.audioQueueRunning) return true;
     this.displayedQueueByRoom.set(String(roomId), queueNo);
     this.announcingRoomId = roomId;
+    this.cdr.detectChanges();
     this.duckYoutubeAudio(true);
     this.playbackAbort = new AbortController();
     const qSpelled = String(queueNo).split('').join(' ');
@@ -400,6 +431,7 @@ export class MultiDisplayComponent implements OnInit {
     const msg = `ขอเชิญหมายเลข ${qSpelled} ที่ ${roomText} ค่ะ`;
     try {
       await this.playCallAudio(queueNo, roomDigits || String(roomNumber), this.playbackAbort.signal);
+      this.lastCalledRoomId = String(roomId);
       return true;
     } catch (err) {
       console.warn('TTS playback failed', err);
@@ -408,6 +440,7 @@ export class MultiDisplayComponent implements OnInit {
     } finally {
       this.duckYoutubeAudio(false);
       if (this.announcingRoomId === roomId) this.announcingRoomId = '';
+      this.cdr.detectChanges();
     }
   }
 
@@ -609,6 +642,5 @@ export class MultiDisplayComponent implements OnInit {
   tick() {
     const n = new Date();
     this.clock = n.toTimeString().slice(0, 8);
-    this.dateText = n.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   }
 }

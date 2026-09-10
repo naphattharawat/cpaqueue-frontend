@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
+import { displayFontFamily } from './display-color.util';
 
 @Component({
   standalone: true,
@@ -83,7 +84,17 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
             <label *ngIf="selected.tts_provider === 'recorded'">ไฟล์เสียงปลายทาง
               <select [(ngModel)]="selected.recorded_room_type">
+                <option value="" disabled>-- เลือกไฟล์เสียงปลายทาง --</option>
                 <option *ngFor="let item of audioFiles" [value]="item.key">{{item.label}}</option>
+              </select>
+              <small *ngIf="audioFilesLoading">กำลังโหลดรายการไฟล์เสียง...</small>
+              <small class="field-error" *ngIf="!audioFilesLoading && audioFilesError">{{audioFilesError}}</small>
+            </label>
+
+            <label *ngIf="selected.tts_provider === 'recorded'">รูปแบบการอ่านหมายเลข
+              <select [(ngModel)]="selected.recorded_number_mode">
+                <option value="digits">อ่านทีละหลัก เช่น 100 เป็น หนึ่ง ศูนย์ ศูนย์</option>
+                <option value="number">อ่านเป็นตัวเลข เช่น 100 เป็น หนึ่งร้อย</option>
               </select>
             </label>
 
@@ -92,6 +103,55 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
             </button>
             <small *ngIf="selected.tts_provider === 'google'">ทดสอบด้วยประโยค: เชิญหมายเลข 123 {{selected.google_room_label || 'ห้องตรวจ'}} {{previewRoomNumber()}}</small>
             <small *ngIf="selected.tts_provider === 'recorded'">ทดสอบด้วยไฟล์เสียงที่เลือกและหมายเลขตัวอย่าง 123</small>
+          </div>
+
+          <div class="settings-section queue-color-settings">
+            <div class="section-head">
+              <h2><i class="fa-solid fa-palette"></i> สีหมายเลขรับบริการ</h2>
+              <button class="btn muted" type="button" (click)="resetQueueColors()">คืนค่าเริ่มต้น</button>
+            </div>
+            <small>ใช้กับทุกห้องและทุกหน้าจอแสดงผลของจุดบริการนี้ คิวที่กำลังเรียกจะกระพริบด้วยสีที่ตั้งไว้</small>
+            <label>ฟอนต์หน้าจอแสดงผล
+              <select [(ngModel)]="selected.display_font_family">
+                <option value="kanit">Kanit</option>
+                <option value="anuphan">Anuphan</option>
+                <option value="ibm-plex-sans-thai">IBM Plex Sans Thai</option>
+                <option value="noto-sans-thai">Noto Sans Thai</option>
+                <option value="prompt">Prompt</option>
+                <option value="sarabun">Sarabun</option>
+              </select>
+            </label>
+            <div class="display-font-preview" [style.font-family]="selectedDisplayFontFamily()">
+              <b>หน้าจอแสดงหมายเลขรับบริการ</b>
+              <span>ห้องตรวจ 12 หมายเลข 1234</span>
+            </div>
+            <label>ความหนาของตัวเลขคิว
+              <select [(ngModel)]="selected.queue_font_weight">
+                <option value="400">บาง</option>
+                <option value="700">ปกติ</option>
+                <option value="900">หนา</option>
+              </select>
+            </label>
+            <div class="room-color-grid">
+              <div>
+                <b>คิวที่กำลังเรียก</b>
+                <span class="queue-color-preview preview-pulse" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.active_text" [style.border-color]="selected.queue_colors.active_border">123</span>
+                <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.active_text"></label>
+                <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.active_border"></label>
+              </div>
+              <div>
+                <b>คิวก่อนหน้า</b>
+                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.previous_text" [style.border-color]="selected.queue_colors.previous_border">123</span>
+                <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.previous_text"></label>
+                <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.previous_border"></label>
+              </div>
+              <div>
+                <b>คิวที่เรียกไปแล้ว</b>
+                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.called_text" [style.border-color]="selected.queue_colors.called_border">123</span>
+                <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.called_text"></label>
+                <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.called_border"></label>
+              </div>
+            </div>
           </div>
 
           <div class="settings-section">
@@ -104,7 +164,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
               <input [(ngModel)]="draftDevice.device_name" placeholder="ชื่อ device เช่น จอรวมทันตกรรม">
               <select [(ngModel)]="draftDevice.device_type">
                 <option value="multi">จอรวม</option>
-                <option value="single">จอเดี่ยว</option>
+                <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
                 <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
               </select>
               <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
@@ -114,6 +174,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
                 <select multiple [(ngModel)]="draftDevice.room_ids">
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
                 </select>
+                <small *ngIf="draftDevice.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
               </label>
               <button class="btn" (click)="createDevice()">สร้าง token</button>
             </article>
@@ -123,7 +184,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
                 <input [(ngModel)]="d.device_name">
                 <select [(ngModel)]="d.device_type">
                   <option value="multi">จอรวม</option>
-                  <option value="single">จอเดี่ยว</option>
+                  <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
                   <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
                 </select>
                 <label class="inline-check"><input type="checkbox" [(ngModel)]="d.active"> active</label>
@@ -135,6 +196,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
                 <select multiple [(ngModel)]="d.room_ids">
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
                 </select>
+                <small *ngIf="d.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
               </label>
               <div class="device-actions">
                 <button class="btn" (click)="saveDevice(d)">บันทึก device</button>
@@ -159,6 +221,8 @@ export class ServiceSettingsComponent implements OnInit {
   locations: any[] = [];
   rooms: any[] = [];
   audioFiles: any[] = [];
+  audioFilesLoading = false;
+  audioFilesError = '';
   selected: any = null;
   search = '';
   draftDevice: any = null;
@@ -176,7 +240,47 @@ export class ServiceSettingsComponent implements OnInit {
       this.locations = (r.data || []).map((item: any) => this.normalizeLocation(item));
       if (this.locations[0]) this.selectLocation(this.locations[0]);
     });
-    this.api.audioFiles().subscribe(r => this.audioFiles = this.sortAudio(r.data || []));
+    this.loadAudioFiles();
+  }
+
+  loadAudioFiles() {
+    this.audioFilesLoading = true;
+    this.audioFilesError = '';
+    this.api.audioFiles(true).subscribe({
+      next: r => {
+        this.audioFiles = this.normalizeAudioFiles(r.data || []);
+        this.audioFilesLoading = false;
+        if (!this.audioFiles.length) this.loadDefaultVoiceTypes();
+      },
+      error: err => {
+        console.warn('Load audio files failed', err);
+        this.audioFilesLoading = false;
+        this.loadDefaultVoiceTypes();
+      },
+    });
+  }
+
+  loadDefaultVoiceTypes() {
+    this.api.voiceTypes().subscribe({
+      next: r => {
+        this.audioFiles = this.normalizeAudioFiles((r.data || []).map((key: string) => ({ key, label: key })));
+        this.audioFilesError = this.audioFiles.length ? '' : 'ไม่พบไฟล์เสียงสำหรับเลือก';
+      },
+      error: err => {
+        console.warn('Load voice types failed', err);
+        this.audioFilesError = 'โหลดรายการไฟล์เสียงไม่สำเร็จ';
+      },
+    });
+  }
+
+  normalizeAudioFiles(items: any[]) {
+    const unique = new Map<string, any>();
+    for (const item of items) {
+      const file = String(item?.file || '');
+      const key = String(item?.key || file.replace(/\.[^.]+$/, '')).trim();
+      if (key) unique.set(key, { ...item, key, label: String(item?.label || key) });
+    }
+    return this.sortAudio([...unique.values()]);
   }
 
   get filteredLocations() {
@@ -273,6 +377,7 @@ export class ServiceSettingsComponent implements OnInit {
         room: this.previewRoomNumber(),
         provider: this.selected.tts_provider,
         voice_rate: String(this.selected.voice_rate || 1),
+        number_mode: this.selected.recorded_number_mode || 'digits',
       });
       if (this.selected.tts_provider === 'google') params.set('room_label', this.selected.google_room_label || 'ห้องตรวจ');
       if (this.selected.tts_provider === 'recorded') params.set('room_type', this.selected.recorded_room_type || 'doctor_room');
@@ -306,8 +411,10 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   devicePayload(device: any) {
+    const roomIds = Array.isArray(device.room_ids) ? device.room_ids : [];
     return {
       ...device,
+      room_ids: roomIds,
       settings: { ...(device.settings || {}), queue_limit: Math.min(12, Math.max(1, Number(device.settings?.queue_limit || 6))) },
       allowed_ips: String(device.allowed_ips_text || '').split(',').map(ip => ip.trim()).filter(Boolean),
     };
@@ -328,6 +435,10 @@ export class ServiceSettingsComponent implements OnInit {
       ...item,
       google_room_label: item.google_room_label || item.settings?.google_room_label || 'ห้องตรวจ',
       recorded_room_type: item.recorded_room_type || 'doctor_room',
+      recorded_number_mode: item.recorded_number_mode === 'number' ? 'number' : 'digits',
+      queue_colors: { ...this.defaultQueueColors(), ...(item.queue_colors || item.settings?.queue_colors || {}) },
+      queue_font_weight: ['400', '700', '900'].includes(String(item.queue_font_weight || item.settings?.queue_font_weight)) ? String(item.queue_font_weight || item.settings?.queue_font_weight) : '900',
+      display_font_family: item.display_font_family || item.settings?.display_font_family || 'kanit',
       voice_rate: Number(item.voice_rate || 1),
       call_repeat_count: Math.min(5, Math.max(1, Number(item.call_repeat_count || 1))),
       pooled_call_enabled: !!item.pooled_call_enabled,
@@ -345,5 +456,25 @@ export class ServiceSettingsComponent implements OnInit {
 
   sortAudio(items: any[]) {
     return [...items].sort((a, b) => String(a.label || a.key).localeCompare(String(b.label || b.key), 'en', { sensitivity: 'base' }));
+  }
+
+  resetQueueColors() {
+    if (!this.selected) return;
+    this.selected.queue_colors = this.defaultQueueColors();
+  }
+
+  selectedDisplayFontFamily() {
+    return displayFontFamily(this.selected?.display_font_family);
+  }
+
+  defaultQueueColors() {
+    return {
+      active_text: '#7c2d12',
+      active_border: '#f59e0b',
+      previous_text: '#7c2d12',
+      previous_border: '#f59e0b',
+      called_text: '#64748b',
+      called_border: '#cbd5e1',
+    };
   }
 }

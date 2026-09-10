@@ -1,25 +1,26 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { abortError, playAudioSequence } from './audio-playback.util';
 import { appRouteUrl } from './app-url.util';
+import { displayFontVariables, queueColorVariables } from './display-color.util';
 
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <main class="display-screen" *ngIf="roomId; else setup">
+    <main class="display-screen" *ngIf="roomId; else setup" [ngStyle]="displayFontStyle">
       <header>
         <a [href]="appRouteUrl('/')" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
         <div><small>โรงพยาบาลเจ้าพระยาอภัยภูเบศร</small><h2>{{doctorName || locationName}}</h2></div>
-        <div class="time"><b>{{clock}}</b><span>{{dateText}}</span></div>
+        <div class="time"><b>{{clock}}</b></div>
       </header>
 
       <section class="display-center">
         <div class="room-pill"><i class="fa-solid fa-user-doctor"></i>{{roomName || 'ห้องตรวจ'}}</div>
-        <div class="display-card active-card" [class.pulse]="announcing">
+        <div class="display-card active-card" [class.called]="currentNumber !== '---'" [class.pulse]="announcing" [ngStyle]="roomColorStyle">
           <span>หมายเลขรับบริการปัจจุบัน</span>
           <strong>{{currentNumber}}</strong>
           <em>{{currentSub}}</em>
@@ -43,8 +44,8 @@ import { appRouteUrl } from './app-url.util';
       <main class="display-screen display-setup-screen">
         <header>
           <a [href]="appRouteUrl('/')" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
-          <div><small>Queue Display</small><h2>เลือกจุดบริการสำหรับหน้าจอแสดงคิว</h2></div>
-          <div class="time"><b>{{clock}}</b><span>{{dateText}}</span></div>
+          <div><small>Queue Display</small><h2>เลือกจุดบริการสำหรับหน้าจอแสดงหมายเลขรับบริการ</h2></div>
+          <div class="time"><b>{{clock}}</b></div>
         </header>
 
         <section class="display-setup-card">
@@ -64,7 +65,7 @@ import { appRouteUrl } from './app-url.util';
 
           <div class="empty-row" *ngIf="locationId && !rooms.length">ไม่พบห้องตรวจของจุดบริการนี้</div>
           <button class="btn display-start" [disabled]="!selectedRoomId" (click)="startDisplay()">
-            <i class="fa-solid fa-tv"></i> เปิดหน้าจอแสดงคิว
+            <i class="fa-solid fa-tv"></i> เปิดหน้าจอแสดงหมายเลขรับบริการ
           </button>
         </section>
       </main>
@@ -84,7 +85,6 @@ export class DisplayComponent implements OnInit {
   doctorName = '';
   locationName = '';
   clock = '';
-  dateText = '';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
   announcing = false;
   audioUnlocked = true;
@@ -94,6 +94,7 @@ export class DisplayComponent implements OnInit {
   playbackAbort?: AbortController;
   currentAudio?: HTMLAudioElement;
   callRepeatCount = 1;
+  displaySettings: any = {};
   initialLoadDone = false;
   processed = new Map<string, string>();
   forceAnnounceRoomId = '';
@@ -101,7 +102,7 @@ export class DisplayComponent implements OnInit {
   displayedCurrentNumber = '';
   canceledSlotIds = new Set<string>();
 
-  constructor(private route: ActivatedRoute, private api: QueueService) {}
+  constructor(private route: ActivatedRoute, private api: QueueService, private cdr: ChangeDetectorRef) {}
 
   appRouteUrl = appRouteUrl;
 
@@ -186,6 +187,7 @@ export class DisplayComponent implements OnInit {
     this.holdQueues = r.hold_queues || [];
     this.active = r.active;
     this.callRepeatCount = this.normalizeRepeatCount(r.call_repeat_count);
+    this.displaySettings = r.display_settings || {};
     this.roomName = r.room_info?.display_location_name || r.room_info?.opd_qs_room_name || '';
     this.doctorName = r.room_info?.doctor_name || '';
     this.locationName = r.room_info?.opd_qs_location_name || '';
@@ -209,7 +211,15 @@ export class DisplayComponent implements OnInit {
   }
 
   get currentNumber() {
-    return this.displayedCurrentNumber || (this.active ? this.displayNo(this.active) : '---');
+    return this.displayedCurrentNumber || (!this.initialLoadDone && this.active ? this.displayNo(this.active) : '---');
+  }
+
+  get roomColorStyle() {
+    return queueColorVariables(this.displaySettings?.queue_colors, this.displaySettings?.queue_font_weight);
+  }
+
+  get displayFontStyle() {
+    return displayFontVariables(this.displaySettings?.display_font_family);
   }
 
   get currentSub() {
@@ -260,6 +270,7 @@ export class DisplayComponent implements OnInit {
     if (!this.audioUnlocked) return false;
     this.displayedCurrentNumber = queueNo;
     this.announcing = true;
+    this.cdr.detectChanges();
     this.stopAudioPlayback();
     this.playbackAbort = new AbortController();
     try {
@@ -270,7 +281,10 @@ export class DisplayComponent implements OnInit {
       if (this.isAutoplayBlocked(err)) this.audioUnlocked = false;
       return false;
     } finally {
-      setTimeout(() => this.announcing = false, 3000);
+      setTimeout(() => {
+        this.announcing = false;
+        this.cdr.detectChanges();
+      }, 3000);
     }
   }
 
@@ -373,6 +387,5 @@ export class DisplayComponent implements OnInit {
   tick() {
     const n = new Date();
     this.clock = n.toTimeString().slice(0, 8);
-    this.dateText = n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 }

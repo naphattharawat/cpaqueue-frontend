@@ -1,6 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { AuthService } from './auth.service';
 import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
 
@@ -12,6 +14,9 @@ import { appRouteUrl } from './app-url.util';
       <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
       <div><b>Doctor Queue</b><small>CALLER</small></div>
       <span class="pill"><i class="fa-regular fa-clock"></i>{{ clock }}</span>
+      <button class="caller-logout" type="button" title="ออกจากระบบ" (click)="logout()">
+        <i class="fa-solid fa-right-from-bracket"></i><span>Logout</span>
+      </button>
     </header>
 
     <section class="filters">
@@ -50,7 +55,7 @@ import { appRouteUrl } from './app-url.util';
       </label>
 
       <button class="btn" (click)="loadQueues()"><i class="fa-solid fa-rotate"></i> F5</button>
-      <a class="btn display" [href]="displayLink" target="_blank"><i class="fa-solid fa-tv"></i> Display</a>
+      <a *ngIf="isAdminUser" class="btn display" [href]="displayLink" target="_blank"><i class="fa-solid fa-tv"></i> Display</a>
     </section>
 
     <main class="workspace">
@@ -71,7 +76,7 @@ import { appRouteUrl } from './app-url.util';
 
           <ng-container *ngIf="selectedTab(selected) === 'waiting'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
-            <button class="wide warning" (click)="cancelQueue(selected)">ไม่พบ <span>Alt+3</span></button>
+            <button class="wide warning" (click)="holdQueue(selected)">ไม่พบ <span>Alt+3</span></button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'called'">
             <button class="wide call" (click)="callQueue(selected)">เรียกซ้ำ <span>Alt+1</span></button>
@@ -102,7 +107,7 @@ import { appRouteUrl } from './app-url.util';
           <div class="actions">
             <ng-container *ngIf="tab === 'waiting'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
-              <button class="btn-hold" (click)="cancelQueue(q); $event.stopPropagation()">ไม่พบ</button>
+              <button class="btn-hold" (click)="holdQueue(q); $event.stopPropagation()">ไม่พบ</button>
             </ng-container>
             <ng-container *ngIf="tab === 'called'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกซ้ำ</button>
@@ -133,13 +138,16 @@ export class CallerComponent implements OnInit {
   doctorOpen = false;
   doctorQuery = '';
   pooledCallEnabled = false;
+  isAdminUser = false;
   private loadQueuesWatchdog?: number;
+  private loadQueuesGeneration = 0;
 
-  constructor(private api: QueueService) {}
+  constructor(private api: QueueService, private auth: AuthService, private router: Router) {}
 
   appRouteUrl = appRouteUrl;
 
   ngOnInit() {
+    this.auth.loadUser().then(user => this.isAdminUser = this.auth.isAdmin(user));
     setInterval(() => this.clock = new Date().toTimeString().slice(0, 8), 1000);
     this.clock = new Date().toTimeString().slice(0, 8);
     this.api.locations().subscribe(r => this.locations = r.data);
@@ -161,6 +169,11 @@ export class CallerComponent implements OnInit {
     });
     this.api.connect(['queue:all']);
     this.resetLoadQueuesWatchdog();
+  }
+
+  async logout() {
+    await this.auth.logout();
+    await this.router.navigateByUrl('/login');
   }
 
   get doctorSummary() {
@@ -252,8 +265,10 @@ export class CallerComponent implements OnInit {
   loadQueues() {
     this.resetLoadQueuesWatchdog();
     if (!this.locationId) return;
+    const generation = ++this.loadQueuesGeneration;
     const doctorCodes = this.pooledCallEnabled ? '' : this.validSelectedDoctorCodes().join(',');
     this.api.queues(this.locationId, doctorCodes).subscribe(r => {
+      if (generation !== this.loadQueuesGeneration) return;
       this.queues = r.data;
       this.updateDisplayLink();
     });
@@ -299,7 +314,22 @@ export class CallerComponent implements OnInit {
   }
 
   holdQueue(q: any) {
-    this.api.hold({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, location_id: this.locationId }).subscribe(() => this.loadQueues());
+    this.api.hold({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, location_id: this.locationId }).subscribe({
+      next: () => {
+        const heldAt = new Date().toISOString();
+        this.queues = this.queues.map(item => String(item.opd_qs_slot_id) === String(q.opd_qs_slot_id)
+          ? { ...item, call_status: 'W', call_datetime: heldAt }
+          : item);
+        this.selected = this.queues.find(item => String(item.opd_qs_slot_id) === String(q.opd_qs_slot_id)) || null;
+        this.updateDisplayLink();
+        this.loadQueues();
+        window.setTimeout(() => this.loadQueues(), 300);
+      },
+      error: err => {
+        console.warn('Hold queue failed', err);
+        window.alert(err?.error?.message || 'บันทึกคิวเรียกไม่พบไม่สำเร็จ');
+      },
+    });
   }
 
   cancelQueue(q: any) {
@@ -357,7 +387,7 @@ export class CallerComponent implements OnInit {
     }
     if (e.key === '3' && this.selectedTab(this.selected) === 'waiting') {
       e.preventDefault();
-      this.cancelQueue(this.selected);
+      this.holdQueue(this.selected);
     }
     if (e.key === '3' && this.selectedTab(this.selected) === 'called') {
       e.preventDefault();

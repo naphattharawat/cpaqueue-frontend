@@ -4,18 +4,19 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
+import { displayFontVariables, queueColorVariables } from './display-color.util';
 
 @Component({
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <main class="room-list-display-page">
+    <main class="room-list-display-page" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
           <a [href]="appRouteUrl('/')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
           <h1>{{title}}</h1>
         </div>
-        <div class="multi-clock">เวลา&nbsp; {{clock}} <span>{{dateText}}</span></div>
+        <div class="multi-clock">เวลา&nbsp; {{clock}}</div>
         <div class="multi-tools">
           <button title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
         </div>
@@ -42,19 +43,19 @@ import { appRouteUrl } from './app-url.util';
           </label>
         </div>
         <button class="btn" [disabled]="!picked.size" (click)="startBoard()">
-          <i class="fa-solid fa-table-cells-large"></i> เปิดหน้าจอแสดงคิวหลายรายการ
+          <i class="fa-solid fa-table-cells-large"></i> เปิดหน้าจอแสดงหมายเลขรับบริการหลายรายการ
         </button>
       </section>
 
       <section class="room-list-board" *ngIf="roomIds" [ngStyle]="boardStyle">
-        <article class="room-list-card" *ngFor="let room of roomsData" [class.has-queue]="room.queues?.length">
+        <article class="room-list-card" *ngFor="let room of roomsData" [class.has-queue]="room.queues?.length" [ngStyle]="queueColorStyle()">
           <div class="room-list-room">
             <span>ห้อง</span>
             <strong>{{room.room_number || room.room_id}}</strong>
             <small>{{room.room_name}}</small>
           </div>
           <div class="room-list-queues">
-            <div class="room-list-queue" *ngFor="let q of room.queues; let i = index" [class.latest]="i === 0">
+            <div class="room-list-queue" *ngFor="let q of room.queues" [class.latest]="isLatestQueue(room, q)">
               <strong>{{displayNo(q)}}</strong>
               <small>{{timeText(q.call_datetime)}}</small>
             </div>
@@ -79,10 +80,10 @@ export class RoomListDisplayComponent implements OnInit {
   roomIds = '';
   limit = 6;
   roomsData: any[] = [];
-  title = 'หน้าจอแสดงคิวหลายรายการต่อห้อง';
+  title = 'หน้าจอแสดงหมายเลขรับบริการหลายรายการต่อห้อง';
   clock = '';
-  dateText = '';
   queueType = localStorage.getItem('display_queue_type') || 'oqueue';
+  displaySettings: any = {};
 
   constructor(private route: ActivatedRoute, private api: QueueService) {}
 
@@ -141,14 +142,32 @@ export class RoomListDisplayComponent implements OnInit {
   loadBoard() {
     this.api.displayRoomList(this.roomIds, this.limit).subscribe(r => {
       this.roomsData = r.rooms_data || [];
-      this.title = this.roomsData[0]?.location_name ? `หน้าจอแสดงคิว ${this.roomsData[0].location_name}` : 'หน้าจอแสดงคิวหลายรายการต่อห้อง';
+      this.displaySettings = r.display_settings || {};
+      this.title = this.roomsData[0]?.location_name ? `หน้าจอแสดงหมายเลขรับบริการ ${this.roomsData[0].location_name}` : 'หน้าจอแสดงหมายเลขรับบริการหลายรายการต่อห้อง';
     });
+  }
+
+  isLatestQueue(room: any, q: any) {
+    const latest = this.roomsData.flatMap(item => (item.queues || []).map((queue: any) => ({
+      roomId: String(item.room_id),
+      queueNo: this.displayNo(queue),
+      at: new Date(queue.call_datetime || queue.logged_at || 0).getTime(),
+    }))).sort((a, b) => b.at - a.at)[0];
+    return latest?.roomId === String(room?.room_id) && latest?.queueNo === this.displayNo(q);
   }
 
   displayNo(q: any) {
     if (!q) return '---';
     if (this.queueType === 'oqueue') return q.oqueue || q.queue_no || q.queue_slot_number || '---';
     return q.queue_slot_number || q.queue_no || q.oqueue || '---';
+  }
+
+  queueColorStyle() {
+    return queueColorVariables(this.displaySettings?.queue_colors, this.displaySettings?.queue_font_weight);
+  }
+
+  get displayFontStyle() {
+    return displayFontVariables(this.displaySettings?.display_font_family);
   }
 
   timeText(value: string) {
@@ -160,7 +179,6 @@ export class RoomListDisplayComponent implements OnInit {
   tick() {
     const n = new Date();
     this.clock = n.toTimeString().slice(0, 8);
-    this.dateText = n.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   toggleFullScreen() {

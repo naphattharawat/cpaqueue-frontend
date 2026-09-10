@@ -19,9 +19,15 @@
                 "glob": "**/*",
                 "input": "../assets",
                 "output": "assets"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/assets/fonts",
+                "output": "assets/fonts"
               }
             ],
             "styles": [
+              "src/assets/css/fonts.css",
               "src/styles.css"
             ]
           },
