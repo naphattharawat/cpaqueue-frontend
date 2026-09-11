@@ -204,11 +204,12 @@ import { displayFontFamily } from './display-color.util';
                 <button class="btn muted" (click)="rotateToken(d)">Rotate token</button>
                 <button class="btn danger" (click)="deleteDevice(d)">ลบ</button>
               </div>
-              <div class="token-box" *ngIf="d.setup_token">
-                <b>Token แสดงครั้งเดียว</b>
-                <code>{{d.setup_token}}</code>
-                <code>{{displayDeviceUrl(d.setup_token)}}</code>
+              <div class="token-box" *ngIf="d.setup_token; else unavailableToken">
+                <b>Device token</b>
+                <div class="token-value"><code>{{d.setup_token}}</code><button class="btn muted" type="button" (click)="copyText(d.setup_token, 'คัดลอก token แล้ว')"><i class="fa-solid fa-copy"></i> คัดลอก</button></div>
+                <div class="token-value"><code>{{displayDeviceUrl(d.setup_token)}}</code><button class="btn muted" type="button" (click)="copyText(displayDeviceUrl(d.setup_token), 'คัดลอก URL แล้ว')"><i class="fa-solid fa-link"></i> คัดลอก URL</button></div>
               </div>
+              <ng-template #unavailableToken><small class="token-unavailable">Token เดิมไม่สามารถแสดงย้อนหลังได้ กรุณา Rotate token หนึ่งครั้ง</small></ng-template>
               <small>last seen: {{d.last_seen_at || '-'}}</small>
             </article>
           </div>
@@ -365,7 +366,27 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   rotateToken(device: any) {
-    this.api.rotateDisplayDeviceToken(String(device.device_id)).subscribe(r => Object.assign(device, this.normalizeDevice(r.data)));
+    const confirmed = window.confirm('ยืนยันการ Rotate token? เครื่องที่ใช้ token เดิมอยู่จะหยุดทำงานทันที และต้องเปิดด้วย URL ใหม่อีกครั้ง');
+    if (!confirmed) return;
+    this.api.rotateDisplayDeviceToken(String(device.device_id)).subscribe({
+      next: r => {
+        Object.assign(device, this.normalizeDevice(r.data));
+        this.showToast('สร้าง token ใหม่แล้ว กรุณานำ URL ใหม่ไปเปิดที่เครื่องแสดงผล');
+      },
+      error: err => {
+        console.warn('Rotate device token failed', err);
+        this.showToast('Rotate token ไม่สำเร็จ');
+      },
+    });
+  }
+
+  async copyText(value: string, successMessage: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      this.showToast(successMessage);
+    } catch {
+      this.showToast('คัดลอกไม่สำเร็จ');
+    }
   }
 
   deleteDevice(device: any) {

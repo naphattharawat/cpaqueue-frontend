@@ -182,10 +182,16 @@ export class DisplayDeviceComponent implements OnInit {
     this.previewId = this.route.snapshot.queryParamMap.get('preview_id') || '';
     this.demoMode = this.previewId !== '' && this.route.snapshot.queryParamMap.get('demo') === '1';
     if (queryToken) {
-      sessionStorage.setItem('display_device_token', queryToken);
+      localStorage.setItem('display_device_token', queryToken);
+      sessionStorage.removeItem('display_device_token');
       history.replaceState({}, '', appRouteUrl('/display-device'));
     }
-    this.token = queryToken || sessionStorage.getItem('display_device_token') || '';
+    const legacyToken = sessionStorage.getItem('display_device_token') || '';
+    if (!queryToken && legacyToken) {
+      localStorage.setItem('display_device_token', legacyToken);
+      sessionStorage.removeItem('display_device_token');
+    }
+    this.token = queryToken || localStorage.getItem('display_device_token') || legacyToken;
     if (!this.token && !this.previewId) {
       this.showError('ไม่พบ token ใน URL');
       return;
