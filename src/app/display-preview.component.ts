@@ -7,9 +7,8 @@ import { QueueService } from './queue.service';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="display-preview-page">
       <header>
         <a [href]="appRouteUrl('/service-settings')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
@@ -57,7 +56,7 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
         </section>
       </ng-template>
     </main>
-  `,
+  `
 })
 export class DisplayPreviewComponent implements OnInit {
   @ViewChild('previewFrame') previewFrame?: ElementRef<HTMLIFrameElement>;

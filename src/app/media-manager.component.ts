@@ -5,9 +5,8 @@ import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="media-manager">
       <div class="quick-toast" *ngIf="toastMessage">{{toastMessage}}</div>
       <header>
@@ -105,7 +104,7 @@ import { appRouteUrl } from './app-url.util';
         </section>
       </div>
     </main>
-  `,
+  `
 })
 export class MediaManagerComponent implements OnInit {
   appRouteUrl = appRouteUrl;

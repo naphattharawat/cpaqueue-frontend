@@ -5,9 +5,8 @@ import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="admin-dashboard">
       <header class="dashboard-header">
         <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
@@ -80,7 +79,7 @@ import { appRouteUrl } from './app-url.util';
       <p class="empty-row" *ngIf="!summary && !loading">โหลด dashboard ไม่สำเร็จ</p>
       <footer class="dashboard-footer" *ngIf="lastLoadedAt">ดึงข้อมูลล่าสุด {{lastLoadedAt}}</footer>
     </main>
-  `,
+  `
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   appRouteUrl = appRouteUrl;

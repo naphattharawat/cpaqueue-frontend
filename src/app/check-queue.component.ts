@@ -4,9 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="check-screen">
       <section class="check-card">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -38,7 +37,7 @@ import { QueueService } from './queue.service';
         <p class="error" *ngIf="error">{{error}}</p>
       </section>
     </main>
-  `,
+  `
 })
 export class CheckQueueComponent {
   query = '';

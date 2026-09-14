@@ -5,9 +5,8 @@ import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="audio-settings">
       <header>
         <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
@@ -67,7 +66,7 @@ import { appRouteUrl } from './app-url.util';
 
       <p class="empty-row" *ngIf="!filteredItems.length">ยังไม่มีไฟล์เสียงในหมวดนี้</p>
     </main>
-  `,
+  `
 })
 export class AudioSettingsComponent implements OnInit {
   appRouteUrl = appRouteUrl;

@@ -5,9 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="login-screen">
       <section class="login-card">
         <i class="fa-solid fa-hospital-user"></i>
@@ -25,7 +24,7 @@ import { AuthService } from './auth.service';
         </form>
       </section>
     </main>
-  `,
+  `
 })
 export class LoginComponent {
   username = '';

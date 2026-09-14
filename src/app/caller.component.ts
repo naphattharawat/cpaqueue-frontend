@@ -7,9 +7,8 @@ import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <header class="topbar">
       <a [href]="appRouteUrl('/')" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></a>
       <div><b>Doctor Queue</b><small>CALLER</small></div>
@@ -122,7 +121,7 @@ import { appRouteUrl } from './app-url.util';
         <div class="empty-row" *ngIf="filteredQueues().length===0">ไม่มีข้อมูลคิว</div>
       </section>
     </main>
-  `,
+  `
 })
 export class CallerComponent implements OnInit {
   clock = '';
