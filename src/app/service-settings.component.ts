@@ -221,6 +221,7 @@ import { displayFontFamily } from './display-color.util';
               <select [(ngModel)]="draftDevice.device_type">
                 <option value="multi">จอรวม</option>
                 <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
+                <option value="dual">จอคู่ (ซ้าย-ขวา 2 ห้อง)</option>
                 <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
               </select>
               <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
@@ -235,6 +236,7 @@ import { displayFontFamily } from './display-color.util';
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
                 </select>
                 <small *ngIf="draftDevice.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
+                <small *ngIf="draftDevice.device_type === 'dual'">เลือกให้ครบ 2 ห้อง — ห้องที่เลขน้อยกว่าจะอยู่ฝั่งซ้าย เลขมากกว่าอยู่ฝั่งขวา</small>
               </label>
               <button class="btn" (click)="createDevice()">สร้าง token</button>
             </article>
@@ -245,6 +247,7 @@ import { displayFontFamily } from './display-color.util';
                 <select [(ngModel)]="d.device_type">
                   <option value="multi">จอรวม</option>
                   <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
+                  <option value="dual">จอคู่ (ซ้าย-ขวา 2 ห้อง)</option>
                   <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
                 </select>
                 <label class="inline-check"><input type="checkbox" [(ngModel)]="d.active"> active</label>
@@ -261,6 +264,7 @@ import { displayFontFamily } from './display-color.util';
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
                 </select>
                 <small *ngIf="d.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
+                <small *ngIf="d.device_type === 'dual'">เลือกให้ครบ 2 ห้อง — ห้องที่เลขน้อยกว่าจะอยู่ฝั่งซ้าย เลขมากกว่าอยู่ฝั่งขวา</small>
               </label>
               <div class="device-actions">
                 <button class="btn" (click)="saveDevice(d)">บันทึก device</button>

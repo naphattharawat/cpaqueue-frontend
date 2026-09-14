@@ -51,7 +51,42 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
       </button>
     </main>
 
-    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode" [ngStyle]="displayFontStyle">
+    <main class="display-screen device-single-display device-dual-display" *ngIf="!error && !loading && isDualMode" [ngStyle]="displayFontStyle">
+      <header>
+        <div class="device-single-title">
+          <span class="icon-btn light"><i class="fa-solid fa-hospital"></i></span>
+          <div><small>หน้าจอแสดงหมายเลขรับบริการ</small><h2>{{dualLocationName}}</h2></div>
+        </div>
+        <div class="device-single-tools">
+          <div class="time"><b>{{clock}}</b></div>
+          <button class="icon-btn light" title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
+        </div>
+      </header>
+
+      <section class="display-center dual-panes">
+        <div class="dual-pane" *ngFor="let i of [0, 1]">
+          <div class="room-pill"><i class="fa-solid fa-user-doctor"></i>{{dualRoomName(i)}}</div>
+          <div class="display-card active-card" [class.called]="isLastCalledRoom(dualRoom(i))" [class.pulse]="announcingRoomId === stringId(dualRoom(i)?.room_id)" [ngStyle]="queueColorStyle()">
+            <span>หมายเลขรับบริการปัจจุบัน</span>
+            <strong>{{dualCurrentNumber(i)}}</strong>
+            <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(dualRoom(i)?.active)">({{legacyNo(dualRoom(i)?.active)}})</small>
+            <b>{{dualCurrentNumber(i) !== '---' ? dualDestinationText(i) : 'รอเรียกคิว'}}</b>
+          </div>
+        </div>
+      </section>
+
+      <section class="hold-strip" *ngIf="calledList.length">
+        <h3><i class="fa-solid fa-user-clock"></i> หมายเลขที่เรียกผ่านไปแล้ว ({{calledList.length}} หมายเลข)</h3>
+        <div><span *ngFor="let q of calledList">{{displayNo(q)}}</span></div>
+      </section>
+
+      <footer><span></span><span></span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
+      <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
+        <i class="fa-solid fa-volume-high"></i><span>เปิดเสียงเรียกคิว</span>
+      </button>
+    </main>
+
+    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
           <a [href]="appRouteUrl('/display-device')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
@@ -419,6 +454,36 @@ export class DisplayDeviceComponent implements OnInit {
 
   get singleLocationName() {
     return this.singleRoom?.location_name || this.device?.device_name || 'จุดบริการ';
+  }
+
+  get isDualMode() {
+    return this.device?.device_type === 'dual';
+  }
+
+  get dualLocationName() {
+    return this.roomsData[0]?.location_name || this.device?.device_name || 'จุดบริการ';
+  }
+
+  dualRoom(index: number) {
+    const roomId = this.device?.room_ids?.[index];
+    if (!roomId) return null;
+    return this.roomsData.find(room => String(room.room_id) === String(roomId)) || null;
+  }
+
+  dualCurrentNumber(index: number) {
+    return this.roomDisplayNo(this.dualRoom(index)) || '---';
+  }
+
+  dualRoomName(index: number) {
+    const room = this.dualRoom(index);
+    return room?.room_name || `ห้อง ${room?.room_number || ''}`.trim();
+  }
+
+  dualDestinationText(index: number) {
+    const label = String(this.displaySettings?.destination_label || 'ห้องตรวจ').trim();
+    const room = this.dualRoom(index);
+    const roomNumber = String(room?.room_number || room?.room_id || '').trim();
+    return `${label.startsWith('ที่') ? '' : 'ที่ '}${label}${roomNumber ? ` ${roomNumber}` : ''}`.trim();
   }
 
   roomQueues(room: any) {
