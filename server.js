@@ -4,7 +4,7 @@ var app = express()
 require('dotenv').config();
 app.use(express.static(path.join(__dirname, 'dist', 'cpaqueue', 'browser')));
 
-app.get('*', function (req, res) {
+app.get('/{*splat}', function (req, res) {
   res.sendFile(path.join(__dirname, 'dist', 'cpaqueue', 'browser', 'index.html'));
 });
 
