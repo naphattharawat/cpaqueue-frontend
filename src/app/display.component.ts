@@ -5,12 +5,11 @@ import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { abortError, playAudioSequence } from './audio-playback.util';
 import { appRouteUrl } from './app-url.util';
-import { displayFontVariables, queueColorVariables } from './display-color.util';
+import { displayPageVariables, queueColorVariables } from './display-color.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="display-screen" *ngIf="roomId; else setup" [ngStyle]="displayFontStyle">
       <header>
         <a [href]="appRouteUrl('/')" class="icon-btn light"><i class="fa-solid fa-arrow-left"></i></a>
@@ -70,7 +69,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         </section>
       </main>
     </ng-template>
-  `,
+  `
 })
 export class DisplayComponent implements OnInit {
   locationId = localStorage.getItem('display_location_id') || '';
@@ -219,7 +218,7 @@ export class DisplayComponent implements OnInit {
   }
 
   get displayFontStyle() {
-    return displayFontVariables(this.displaySettings?.display_font_family);
+    return displayPageVariables(this.displaySettings);
   }
 
   get currentSub() {

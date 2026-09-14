@@ -7,6 +7,7 @@ import { CheckQueueComponent } from './check-queue.component';
 import { MediaManagerComponent } from './media-manager.component';
 import { ServiceSettingsComponent } from './service-settings.component';
 import { AudioSettingsComponent } from './audio-settings.component';
+import { DefaultColorsComponent } from './default-colors.component';
 import { DisplayDeviceComponent } from './display-device.component';
 import { DisplayPreviewComponent } from './display-preview.component';
 import { RoomListDisplayComponent } from './room-list-display.component';
@@ -29,4 +30,5 @@ export const routes: Routes = [
   { path: 'media-manager', component: MediaManagerComponent, canActivate: [adminGuard] },
   { path: 'service-settings', component: ServiceSettingsComponent, canActivate: [adminGuard] },
   { path: 'audio-settings', component: AudioSettingsComponent, canActivate: [adminGuard] },
+  { path: 'default-colors', component: DefaultColorsComponent, canActivate: [adminGuard] },
 ];

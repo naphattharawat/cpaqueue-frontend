@@ -6,12 +6,11 @@ import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { abortError, playAudioSequence } from './audio-playback.util';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
-import { displayFontVariables, queueColorVariables } from './display-color.util';
+import { displayPageVariables, queueColorVariables } from './display-color.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="multi-display-page" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
@@ -149,7 +148,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         </section>
       </div>
     </main>
-  `,
+  `
 })
 export class MultiDisplayComponent implements OnInit {
   @ViewChild('youtubeFrame') youtubeFrame?: ElementRef<HTMLIFrameElement>;
@@ -319,7 +318,7 @@ export class MultiDisplayComponent implements OnInit {
   }
 
   get displayFontStyle() {
-    return displayFontVariables(this.displaySettings?.display_font_family);
+    return displayPageVariables(this.displaySettings);
   }
 
   latestRoomIdFromData() {

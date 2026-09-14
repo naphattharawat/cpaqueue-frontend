@@ -4,12 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { appRouteUrl } from './app-url.util';
-import { displayFontVariables, queueColorVariables } from './display-color.util';
+import { displayPageVariables, queueColorVariables } from './display-color.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="room-list-display-page" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
@@ -70,7 +69,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         <span>กลุ่มภารกิจสุขภาพดิจิทัล โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
       </footer>
     </main>
-  `,
+  `
 })
 export class RoomListDisplayComponent implements OnInit {
   locationId = '';
@@ -167,7 +166,7 @@ export class RoomListDisplayComponent implements OnInit {
   }
 
   get displayFontStyle() {
-    return displayFontVariables(this.displaySettings?.display_font_family);
+    return displayPageVariables(this.displaySettings);
   }
 
   timeText(value: string) {

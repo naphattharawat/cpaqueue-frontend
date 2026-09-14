@@ -7,9 +7,8 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 import { displayFontFamily } from './display-color.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
+    imports: [CommonModule, FormsModule],
+    template: `
     <main class="service-settings">
       <div class="quick-toast" *ngIf="toastMessage">{{toastMessage}}</div>
       <header>
@@ -108,7 +107,10 @@ import { displayFontFamily } from './display-color.util';
           <div class="settings-section queue-color-settings">
             <div class="section-head">
               <h2><i class="fa-solid fa-palette"></i> สีหมายเลขรับบริการ</h2>
-              <button class="btn muted" type="button" (click)="resetQueueColors()">คืนค่าเริ่มต้น</button>
+              <div class="device-actions">
+                <a class="btn muted" [href]="appRouteUrl('/default-colors')"><i class="fa-solid fa-sliders"></i> ตั้งค่าสีเริ่มต้นของระบบ</a>
+                <button class="btn muted" type="button" (click)="resetQueueColors()">คืนค่าเริ่มต้น</button>
+              </div>
             </div>
             <small>ใช้กับทุกห้องและทุกหน้าจอแสดงผลของจุดบริการนี้ คิวที่กำลังเรียกจะกระพริบด้วยสีที่ตั้งไว้</small>
             <label>ฟอนต์หน้าจอแสดงผล
@@ -132,26 +134,80 @@ import { displayFontFamily } from './display-color.util';
                 <option value="900">หนา</option>
               </select>
             </label>
+            <div class="bg-color-field">
+              <span>ความหนาขอบตัวหนังสือ</span>
+              <div class="bg-color-row">
+                <input type="range" min="0" max="4" step="0.5" [(ngModel)]="selected.queue_colors.text_stroke_width">
+                <span class="bg-alpha-value">{{selected.queue_colors.text_stroke_width}}px</span>
+              </div>
+            </div>
+            <div class="bg-color-field page-bg-field">
+              <b>สีพื้นหลังทั้งหน้าจอ</b>
+              <div class="bg-color-row">
+                <input type="color" title="เลือกสีพื้นหลังหน้าจอ" [ngModel]="backgroundHex('page_bg')" (ngModelChange)="setBackgroundHex('page_bg', $event)">
+                <input type="range" min="0" max="100" step="1" [ngModel]="backgroundAlpha('page_bg')" (ngModelChange)="setBackgroundAlpha('page_bg', $event)">
+                <span class="bg-alpha-value">{{backgroundAlpha('page_bg')}}%</span>
+                <span class="bg-preview"><span [style.background]="backgroundPreview('page_bg')"></span></span>
+              </div>
+              <small>ค่าเริ่มต้นคือ gradient ที่หน้าจอใช้อยู่ปัจจุบัน ปรับแล้วมีผลกับพื้นหลังทั้งหน้าของทุกหน้าจอแสดงผลของจุดบริการนี้</small>
+            </div>
             <div class="room-color-grid">
               <div>
                 <b>คิวที่กำลังเรียก</b>
-                <span class="queue-color-preview preview-pulse" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.active_text" [style.border-color]="selected.queue_colors.active_border">123</span>
+                <span class="queue-color-preview preview-pulse" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.active_text" [style.border-color]="selected.queue_colors.active_border" [style.-webkit-text-stroke]="textStrokeStyle(selected.queue_colors.active_text_stroke)" [ngStyle]="{'--queue-active-pulse1': backgroundPreview('active_pulse1'), '--queue-active-pulse2': backgroundPreview('active_pulse2')}">123</span>
                 <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.active_text"></label>
+                <label class="color-field"><span>สีขอบตัวหนังสือ</span><input type="color" title="เลือกสีขอบตัวหนังสือ" [ngModel]="strokeSwatch(selected.queue_colors.active_text_stroke)" (ngModelChange)="selected.queue_colors.active_text_stroke = $event"></label>
                 <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.active_border"></label>
+                <div class="bg-color-field">
+                  <span>สีพื้นหลังตอนกระพริบ 1</span>
+                  <div class="bg-color-row">
+                    <input type="color" title="เลือกสีกระพริบที่ 1" [ngModel]="backgroundHex('active_pulse1')" (ngModelChange)="setBackgroundHex('active_pulse1', $event)">
+                    <input type="range" min="0" max="100" step="1" [ngModel]="backgroundAlpha('active_pulse1')" (ngModelChange)="setBackgroundAlpha('active_pulse1', $event)">
+                    <span class="bg-alpha-value">{{backgroundAlpha('active_pulse1')}}%</span>
+                  </div>
+                </div>
+                <div class="bg-color-field">
+                  <span>สีพื้นหลังตอนกระพริบ 2</span>
+                  <div class="bg-color-row">
+                    <input type="color" title="เลือกสีกระพริบที่ 2" [ngModel]="backgroundHex('active_pulse2')" (ngModelChange)="setBackgroundHex('active_pulse2', $event)">
+                    <input type="range" min="0" max="100" step="1" [ngModel]="backgroundAlpha('active_pulse2')" (ngModelChange)="setBackgroundAlpha('active_pulse2', $event)">
+                    <span class="bg-alpha-value">{{backgroundAlpha('active_pulse2')}}%</span>
+                  </div>
+                </div>
+                <small>กล่องนี้จะสลับพื้นหลังระหว่าง 2 สีนี้ตอนกระพริบ</small>
               </div>
               <div>
                 <b>คิวก่อนหน้า</b>
-                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.previous_text" [style.border-color]="selected.queue_colors.previous_border">123</span>
+                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.previous_text" [style.border-color]="selected.queue_colors.previous_border" [style.background]="backgroundPreview('previous_bg')" [style.-webkit-text-stroke]="textStrokeStyle(selected.queue_colors.previous_text_stroke)">123</span>
                 <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.previous_text"></label>
+                <label class="color-field"><span>สีขอบตัวหนังสือ</span><input type="color" title="เลือกสีขอบตัวหนังสือ" [ngModel]="strokeSwatch(selected.queue_colors.previous_text_stroke)" (ngModelChange)="selected.queue_colors.previous_text_stroke = $event"></label>
                 <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.previous_border"></label>
+                <div class="bg-color-field">
+                  <span>สีพื้นหลังกล่อง</span>
+                  <div class="bg-color-row">
+                    <input type="color" title="เลือกสีพื้นหลัง" [ngModel]="backgroundHex('previous_bg')" (ngModelChange)="setBackgroundHex('previous_bg', $event)">
+                    <input type="range" min="0" max="100" step="1" [ngModel]="backgroundAlpha('previous_bg')" (ngModelChange)="setBackgroundAlpha('previous_bg', $event)">
+                    <span class="bg-alpha-value">{{backgroundAlpha('previous_bg')}}%</span>
+                  </div>
+                </div>
               </div>
               <div>
                 <b>คิวที่เรียกไปแล้ว</b>
-                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.called_text" [style.border-color]="selected.queue_colors.called_border">123</span>
+                <span class="queue-color-preview" [style.font-weight]="selected.queue_font_weight" [style.color]="selected.queue_colors.called_text" [style.border-color]="selected.queue_colors.called_border" [style.background]="backgroundPreview('called_bg')" [style.-webkit-text-stroke]="textStrokeStyle(selected.queue_colors.called_text_stroke)">123</span>
                 <label class="color-field"><span>สีตัวหนังสือ</span><input type="color" title="เลือกสีตัวหนังสือ" [(ngModel)]="selected.queue_colors.called_text"></label>
+                <label class="color-field"><span>สีขอบตัวหนังสือ</span><input type="color" title="เลือกสีขอบตัวหนังสือ" [ngModel]="strokeSwatch(selected.queue_colors.called_text_stroke)" (ngModelChange)="selected.queue_colors.called_text_stroke = $event"></label>
                 <label class="color-field"><span>สีกรอบ</span><input type="color" title="เลือกสีกรอบ" [(ngModel)]="selected.queue_colors.called_border"></label>
+                <div class="bg-color-field">
+                  <span>สีพื้นหลังกล่อง</span>
+                  <div class="bg-color-row">
+                    <input type="color" title="เลือกสีพื้นหลัง" [ngModel]="backgroundHex('called_bg')" (ngModelChange)="setBackgroundHex('called_bg', $event)">
+                    <input type="range" min="0" max="100" step="1" [ngModel]="backgroundAlpha('called_bg')" (ngModelChange)="setBackgroundAlpha('called_bg', $event)">
+                    <span class="bg-alpha-value">{{backgroundAlpha('called_bg')}}%</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <small>สีพื้นหลังกล่องและสีกระพริบเริ่มต้นคือสีที่หน้าจอใช้อยู่ในปัจจุบัน ปรับแถบด้านบนเพื่อเปลี่ยนความโปร่งใส หรือเลือกสีใหม่ได้เลย (สีกระพริบมีผลเฉพาะคิวที่กำลังเรียก)</small>
           </div>
 
           <div class="settings-section">
@@ -169,6 +225,10 @@ import { displayFontFamily } from './display-color.util';
               </select>
               <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
                 <input type="number" min="1" max="12" step="1" [(ngModel)]="draftDevice.settings.queue_limit" placeholder="จำนวนคิว">
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" [(ngModel)]="draftDevice.settings.show_legacy_queue">
+                แสดงคิวแบบเก่าด้วย (ตัวเล็กใต้คิวหลัก)
               </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="draftDevice.room_ids">
@@ -191,6 +251,10 @@ import { displayFontFamily } from './display-color.util';
               </div>
               <label *ngIf="d.device_type === 'room-list'">จำนวนคิวต่อห้อง
                 <input type="number" min="1" max="12" step="1" [(ngModel)]="d.settings.queue_limit" placeholder="จำนวนคิว">
+              </label>
+              <label class="inline-check">
+                <input type="checkbox" [(ngModel)]="d.settings.show_legacy_queue">
+                แสดงคิวแบบเก่าด้วย (ตัวเล็กใต้คิวหลัก)
               </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="d.room_ids">
@@ -216,7 +280,7 @@ import { displayFontFamily } from './display-color.util';
         </section>
       </section>
     </main>
-  `,
+  `
 })
 export class ServiceSettingsComponent implements OnInit {
   appRouteUrl = appRouteUrl;
@@ -234,17 +298,31 @@ export class ServiceSettingsComponent implements OnInit {
   private locationSaveTimer?: number;
   toastMessage = '';
   private toastTimer?: number;
+  systemDefaultColors: any = null;
 
   constructor(private api: QueueService) {}
 
   ngOnInit() {
+    this.api.queueColorDefaults().subscribe({
+      next: r => {
+        this.systemDefaultColors = r.data?.queue_colors || null;
+        this.loadLocations();
+      },
+      error: err => {
+        console.warn('Load system default colors failed', err);
+        this.loadLocations();
+      },
+    });
+    this.loadAudioFiles();
+  }
+
+  loadLocations() {
     this.api.locationConfigs().subscribe(r => {
       this.locations = (r.data || []).map((item: any) => this.normalizeLocation(item));
       const savedLocationId = localStorage.getItem('service_settings_location_id') || '';
       const savedLocation = this.locations.find(location => String(location.location_id) === savedLocationId);
       if (savedLocation || this.locations[0]) this.selectLocation(savedLocation || this.locations[0]);
     });
-    this.loadAudioFiles();
   }
 
   loadAudioFiles() {
@@ -337,7 +415,7 @@ export class ServiceSettingsComponent implements OnInit {
       room_ids: [],
       allowed_ips_text: '',
       active: true,
-      settings: { queue_limit: 6 },
+      settings: { queue_limit: 6, show_legacy_queue: false },
     };
   }
 
@@ -468,7 +546,7 @@ export class ServiceSettingsComponent implements OnInit {
       recorded_room_label: item.recorded_room_label || item.settings?.recorded_room_label || '',
       recorded_room_type: item.recorded_room_type || 'doctor_room',
       recorded_number_mode: item.recorded_number_mode === 'number' ? 'number' : 'digits',
-      queue_colors: { ...this.defaultQueueColors(), ...(item.queue_colors || item.settings?.queue_colors || {}) },
+      queue_colors: { ...this.defaultQueueColors(), ...(this.systemDefaultColors || {}), ...(item.queue_colors || item.settings?.queue_colors || {}) },
       queue_font_weight: ['400', '700', '900'].includes(String(item.queue_font_weight || item.settings?.queue_font_weight)) ? String(item.queue_font_weight || item.settings?.queue_font_weight) : '900',
       display_font_family: item.display_font_family || item.settings?.display_font_family || 'kanit',
       voice_rate: Number(item.voice_rate || 1),
@@ -479,7 +557,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   normalizeDevice(device: any) {
-    return { ...device, settings: { queue_limit: 6, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
+    return { ...device, settings: { queue_limit: 6, show_legacy_queue: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
   }
 
   stringId(id: unknown) {
@@ -492,7 +570,7 @@ export class ServiceSettingsComponent implements OnInit {
 
   resetQueueColors() {
     if (!this.selected) return;
-    this.selected.queue_colors = this.defaultQueueColors();
+    this.selected.queue_colors = { ...this.defaultQueueColors(), ...(this.systemDefaultColors || {}) };
   }
 
   selectedDisplayFontFamily() {
@@ -503,10 +581,92 @@ export class ServiceSettingsComponent implements OnInit {
     return {
       active_text: '#7c2d12',
       active_border: '#f59e0b',
+      active_text_stroke: '',
+      active_pulse1: '',
+      active_pulse2: '',
       previous_text: '#7c2d12',
       previous_border: '#f59e0b',
+      previous_text_stroke: '',
+      previous_bg: '',
       called_text: '#64748b',
       called_border: '#cbd5e1',
+      called_text_stroke: '',
+      called_bg: '',
+      page_bg: '',
+      text_stroke_width: 1,
     };
   }
+
+  // Empty color means no outline — matches the "transparent" fallback used on the actual display.
+  textStrokeStyle(color: string) {
+    return color ? `${this.selected?.queue_colors?.text_stroke_width ?? 1}px ${color}` : '';
+  }
+
+  // <input type=color> can't represent "unset" — an empty value renders as black, which looks
+  // like a color is actively chosen even though no outline is applied. Show a neutral gray
+  // placeholder instead so the swatch doesn't contradict the (stroke-less) preview.
+  strokeSwatch(color: string) {
+    return color || '#e5e7eb';
+  }
+
+  // Each field is stored as an rgba() string once the admin picks one; an empty value means
+  // "not customized yet" — the box (or pulse glow, or page background) keeps its current
+  // default, and the picker below just previews that current color so the admin has a
+  // sensible starting point.
+  private readonly backgroundFieldDefaults: Record<QueueColorKey, { hex: string; alpha: number }> = {
+    previous_bg: { hex: '#f1f5f9', alpha: 100 },
+    called_bg: { hex: '#f1f5f9', alpha: 100 },
+    active_pulse1: { hex: '#fef3c7', alpha: 100 },
+    active_pulse2: { hex: '#fde68a', alpha: 100 },
+    page_bg: { hex: '#0b5427', alpha: 100 },
+  };
+
+  parseRgba(value: string, fallback: { hex: string; alpha: number }): { hex: string; alpha: number } {
+    const str = String(value || '').trim();
+    const m = str.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+)\s*)?\)$/i);
+    if (!m) return fallback;
+    const toHex = (n: string) => Math.min(255, Math.max(0, Number(n))).toString(16).padStart(2, '0');
+    const hex = `#${toHex(m[1])}${toHex(m[2])}${toHex(m[3])}`;
+    const alpha = m[4] !== undefined ? Math.round(Number(m[4]) * 100) : 100;
+    return { hex, alpha: Number.isFinite(alpha) ? Math.min(100, Math.max(0, alpha)) : 100 };
+  }
+
+  backgroundHex(key: QueueColorKey) {
+    return this.parseRgba(this.selected?.queue_colors?.[key], this.backgroundFieldDefaults[key]).hex;
+  }
+
+  backgroundAlpha(key: QueueColorKey) {
+    return this.parseRgba(this.selected?.queue_colors?.[key], this.backgroundFieldDefaults[key]).alpha;
+  }
+
+  backgroundPreview(key: QueueColorKey) {
+    if (this.selected?.queue_colors?.[key]) return this.selected.queue_colors[key];
+    const { hex, alpha } = this.backgroundFieldDefaults[key];
+    return this.rgbaFromHexAlpha(hex, alpha);
+  }
+
+  setBackgroundHex(key: QueueColorKey, hex: string) {
+    this.setBackgroundRgba(key, hex, this.backgroundAlpha(key));
+  }
+
+  setBackgroundAlpha(key: QueueColorKey, alpha: number) {
+    this.setBackgroundRgba(key, this.backgroundHex(key), alpha);
+  }
+
+  setBackgroundRgba(key: QueueColorKey, hex: string, alphaPct: number) {
+    if (!this.selected) return;
+    const fallbackHex = this.backgroundFieldDefaults[key].hex;
+    const clean = /^#[0-9a-f]{6}$/i.test(hex) ? hex : fallbackHex;
+    this.selected.queue_colors[key] = this.rgbaFromHexAlpha(clean, alphaPct);
+  }
+
+  rgbaFromHexAlpha(hex: string, alphaPct: number) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const a = Math.min(100, Math.max(0, Number(alphaPct))) / 100;
+    return `rgba(${r},${g},${b},${a})`;
+  }
 }
+
+type QueueColorKey = 'previous_bg' | 'called_bg' | 'active_pulse1' | 'active_pulse2' | 'page_bg';

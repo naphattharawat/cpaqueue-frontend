@@ -5,12 +5,11 @@ import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 import { abortError, playAudioSequence } from './audio-playback.util';
 import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
-import { displayFontVariables, queueColorVariables } from './display-color.util';
+import { displayPageVariables, queueColorVariables } from './display-color.util';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule],
-  template: `
+    imports: [CommonModule],
+    template: `
     <main class="device-resolve-screen" *ngIf="error || loading">
       <section>
         <i class="fa-solid" [class.fa-tv]="!error" [class.fa-triangle-exclamation]="error"></i>
@@ -36,6 +35,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         <div class="display-card active-card" [class.called]="isLastCalledRoom(singleRoom)" [class.pulse]="announcingRoomId === stringId(singleRoom?.room_id)" [ngStyle]="queueColorStyle()">
           <span>หมายเลขรับบริการปัจจุบัน</span>
           <strong>{{singleCurrentNumber}}</strong>
+          <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(singleRoom?.active)">({{legacyNo(singleRoom?.active)}})</small>
           <b>{{singleCurrentNumber !== '---' ? singleDestinationText : 'รอเรียกคิว'}}</b>
         </div>
 
@@ -102,10 +102,12 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
               <div class="room-number">{{r.room_number || r.room_id}}</div>
               <div class="queue-number" *ngIf="!isRoomListMode" [class.called]="isLastCalledRoom(r)" [class.active]="announcingRoomId === stringId(r.room_id)">
                 {{roomDisplayNo(r) || '---'}}
+                <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(r.active)">({{legacyNo(r.active)}})</small>
               </div>
               <div class="room-list-device-queues" *ngIf="isRoomListMode">
                 <span *ngFor="let q of roomQueues(r)" [class.called]="isLastCalledQueue(r, q)" [class.active]="announcingRoomId === stringId(r.room_id) && displayNo(q) === roomDisplayNo(r)">
                   <b>{{displayNo(q)}}</b>
+                  <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(q)">({{legacyNo(q)}})</small>
                   <small>{{timeText(q.call_datetime)}}</small>
                 </span>
                 <span class="empty" *ngIf="!roomQueues(r).length">---</span>
@@ -125,7 +127,7 @@ import { displayFontVariables, queueColorVariables } from './display-color.util'
         <span>เปิดเสียงเรียกคิว</span>
       </button>
     </main>
-  `,
+  `
 })
 export class DisplayDeviceComponent implements OnInit {
   @ViewChild('youtubeFrame') youtubeFrame?: ElementRef<HTMLIFrameElement>;
@@ -337,6 +339,17 @@ export class DisplayDeviceComponent implements OnInit {
     return q.queue_slot_number || q.queue_no || q.oqueue || '';
   }
 
+  showLegacyQueue() {
+    return !!this.device?.settings?.show_legacy_queue;
+  }
+
+  legacyNo(q: any) {
+    if (!q) return '';
+    const primary = String(this.displayNo(q) || '');
+    const alt = String((this.queueType === 'oqueue' ? q.queue_slot_number : q.oqueue) || '');
+    return alt && alt !== primary ? alt : '';
+  }
+
   roomDisplayNo(room: any) {
     const key = String(room?.room_id ?? '');
     return this.displayedQueueByRoom.get(key) || (!this.initialLoadDone ? this.displayNo(room?.active) : '');
@@ -356,7 +369,7 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   get displayFontStyle() {
-    return displayFontVariables(this.displaySettings?.display_font_family);
+    return displayPageVariables(this.displaySettings);
   }
 
   setLatestCalledFromData() {

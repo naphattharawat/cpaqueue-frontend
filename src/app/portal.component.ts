@@ -4,9 +4,8 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService, AuthUser } from './auth.service';
 
 @Component({
-  standalone: true,
-  imports: [CommonModule, RouterLink],
-  template: `
+    imports: [CommonModule, RouterLink],
+    template: `
     <main class="portal">
       <button class="portal-logout" (click)="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
       <section class="portal-head">
@@ -21,9 +20,10 @@ import { AuthService, AuthUser } from './auth.service';
         <a *ngIf="isAdminUser" routerLink="/media-manager" class="portal-card"><i class="fa-solid fa-images"></i><strong>Media Manager</strong><span>จัดการภาพสไลด์บนหน้าจอรวม</span></a>
         <a *ngIf="isAdminUser" routerLink="/service-settings" class="portal-card"><i class="fa-solid fa-sliders"></i><strong>Service Settings</strong><span>ตั้งค่าจุดบริการ เสียง และ device token</span></a>
         <a *ngIf="isAdminUser" routerLink="/audio-settings" class="portal-card"><i class="fa-solid fa-file-audio"></i><strong>Audio Settings</strong><span>อัปโหลด ตั้งชื่อ และทดสอบไฟล์เสียง</span></a>
+        <a *ngIf="isAdminUser" routerLink="/default-colors" class="portal-card"><i class="fa-solid fa-palette"></i><strong>Default Colors</strong><span>ตั้งค่าสีเริ่มต้นสำหรับปุ่ม "คืนค่าเริ่มต้น"</span></a>
       </nav>
     </main>
-  `,
+  `
 })
 export class PortalComponent implements OnInit {
   user: AuthUser | null = null;
