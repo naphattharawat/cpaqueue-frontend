@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { QueueService } from './queue.service';
 
 @Component({
@@ -39,14 +40,22 @@ import { QueueService } from './queue.service';
     </main>
   `
 })
-export class CheckQueueComponent {
+export class CheckQueueComponent implements OnInit {
   query = '';
   result: any = null;
   results: any[] = [];
   error = '';
   message = '';
 
-  constructor(private api: QueueService) {}
+  constructor(private api: QueueService, private route: ActivatedRoute) {}
+
+  ngOnInit() {
+    const q = this.route.snapshot.queryParamMap.get('q');
+    if (q) {
+      this.query = q;
+      this.check();
+    }
+  }
 
   get primaryQueueNo() {
     return this.result?.oqueue || this.result?.queue_no || '-';
