@@ -57,6 +57,7 @@ export class QueueService {
   deleteDisplayDevice(deviceId: string) { return this.http.delete<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`)); }
   call(body: any) { return this.http.post<any>(this.api('/call'), body); }
   hold(body: any) { return this.http.post<any>(this.api('/hold'), body); }
+  pharmacy(body: any) { return this.http.post<any>(this.api('/pharmacy'), body); }
   cancel(body: any) { return this.http.post<any>(this.api('/cancel'), body); }
 
   connect(topics: string[], options: { deviceToken?: string } = {}) {

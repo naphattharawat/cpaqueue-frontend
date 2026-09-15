@@ -76,6 +76,7 @@ import { appRouteUrl } from './app-url.util';
           <ng-container *ngIf="selectedTab(selected) === 'waiting'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
             <button class="wide warning" (click)="holdQueue(selected)">ไม่พบ <span>Alt+3</span></button>
+            <button class="wide hold" (click)="pharmacyQueue(selected)">เติมยา/ไปรฯ <span>Alt+4</span></button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'called'">
             <button class="wide call" (click)="callQueue(selected)">เรียกซ้ำ <span>Alt+1</span></button>
@@ -83,6 +84,9 @@ import { appRouteUrl } from './app-url.util';
             <button class="wide hold" (click)="cancelQueue(selected)">ยกเลิกเรียก</button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'hold'">
+            <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
+          </ng-container>
+          <ng-container *ngIf="selectedTab(selected) === 'pharmacy'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
           </ng-container>
           <button class="wide next" (click)="callNext()">คิวถัดไป <span>Alt+2</span></button>
@@ -95,6 +99,7 @@ import { appRouteUrl } from './app-url.util';
           <button [class.active]="tab==='waiting'" (click)="tab='waiting'">รอเรียก {{counts.waiting}}</button>
           <button [class.active]="tab==='called'" (click)="tab='called'">เรียกแล้ว {{counts.called}}</button>
           <button [class.active]="tab==='hold'" (click)="tab='hold'">ไม่พบ / รอผล Lab {{counts.hold}}</button>
+          <button [class.active]="tab==='pharmacy'" (click)="tab='pharmacy'">เติมยา/ไปรษณีย์ {{counts.pharmacy}}</button>
         </div>
 
         <article class="queue-card" *ngFor="let q of filteredQueues()" (click)="selected=q">
@@ -107,6 +112,7 @@ import { appRouteUrl } from './app-url.util';
             <ng-container *ngIf="tab === 'waiting'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
               <button class="btn-hold" (click)="holdQueue(q); $event.stopPropagation()">ไม่พบ</button>
+              <button class="btn-hold" (click)="pharmacyQueue(q); $event.stopPropagation()">เติมยา/ไปรฯ</button>
             </ng-container>
             <ng-container *ngIf="tab === 'called'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกซ้ำ</button>
@@ -114,6 +120,9 @@ import { appRouteUrl } from './app-url.util';
               <button class="btn-hold" (click)="cancelQueue(q); $event.stopPropagation()">ยกเลิกเรียก</button>
             </ng-container>
             <ng-container *ngIf="tab === 'hold'">
+              <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
+            </ng-container>
+            <ng-container *ngIf="tab === 'pharmacy'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
             </ng-container>
           </div>
@@ -132,7 +141,7 @@ export class CallerComponent implements OnInit {
   selected: any = null;
   locationId = localStorage.getItem('caller_location_id') || '';
   selectedDoctorCodes: string[] = JSON.parse(localStorage.getItem('caller_doctor_codes') || '[]');
-  tab: 'waiting' | 'called' | 'hold' = 'waiting';
+  tab: 'waiting' | 'called' | 'hold' | 'pharmacy' = 'waiting';
   displayLink = appRouteUrl('/display');
   doctorOpen = false;
   doctorQuery = '';
@@ -189,9 +198,10 @@ export class CallerComponent implements OnInit {
 
   get counts() {
     return {
-      waiting: this.queues.filter(q => !['N', 'W'].includes(q.call_status)).length,
+      waiting: this.queues.filter(q => !['N', 'W', 'P'].includes(q.call_status)).length,
       called: this.queues.filter(q => q.call_status === 'N').length,
       hold: this.queues.filter(q => q.call_status === 'W').length,
+      pharmacy: this.queues.filter(q => q.call_status === 'P').length,
     };
   }
 
@@ -279,7 +289,10 @@ export class CallerComponent implements OnInit {
   }
 
   filteredQueues() {
-    const filtered = this.queues.filter(q => this.tab === 'waiting' ? !['N', 'W'].includes(q.call_status) : this.tab === 'called' ? q.call_status === 'N' : q.call_status === 'W');
+    const statusForTab: Record<string, string> = { called: 'N', hold: 'W', pharmacy: 'P' };
+    const filtered = this.tab === 'waiting'
+      ? this.queues.filter(q => !['N', 'W', 'P'].includes(q.call_status))
+      : this.queues.filter(q => q.call_status === statusForTab[this.tab]);
     if (this.tab === 'waiting') return filtered;
     return [...filtered].sort((a, b) => this.callTimeMs(b) - this.callTimeMs(a));
   }
@@ -289,11 +302,11 @@ export class CallerComponent implements OnInit {
   }
 
   statusText(s: string) {
-    return s === 'N' ? 'เรียกแล้ว' : s === 'W' ? 'ไม่พบ' : 'รอเรียก';
+    return s === 'N' ? 'เรียกแล้ว' : s === 'W' ? 'ไม่พบ' : s === 'P' ? 'เติมยา/ไปรฯ' : 'รอเรียก';
   }
 
-  selectedTab(q: any): 'waiting' | 'called' | 'hold' {
-    return q?.call_status === 'N' ? 'called' : q?.call_status === 'W' ? 'hold' : 'waiting';
+  selectedTab(q: any): 'waiting' | 'called' | 'hold' | 'pharmacy' {
+    return q?.call_status === 'N' ? 'called' : q?.call_status === 'W' ? 'hold' : q?.call_status === 'P' ? 'pharmacy' : 'waiting';
   }
 
   callQueue(q: any) {
@@ -331,6 +344,25 @@ export class CallerComponent implements OnInit {
     });
   }
 
+  pharmacyQueue(q: any) {
+    this.api.pharmacy({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, location_id: this.locationId }).subscribe({
+      next: () => {
+        const heldAt = new Date().toISOString();
+        this.queues = this.queues.map(item => String(item.opd_qs_slot_id) === String(q.opd_qs_slot_id)
+          ? { ...item, call_status: 'P', call_datetime: heldAt }
+          : item);
+        this.selected = this.queues.find(item => String(item.opd_qs_slot_id) === String(q.opd_qs_slot_id)) || null;
+        this.updateDisplayLink();
+        this.loadQueues();
+        window.setTimeout(() => this.loadQueues(), 300);
+      },
+      error: err => {
+        console.warn('Pharmacy queue failed', err);
+        window.alert(err?.error?.message || 'บันทึกคิวเติมยา/ไปรษณีย์ไม่สำเร็จ');
+      },
+    });
+  }
+
   cancelQueue(q: any) {
     this.api.cancel({ slot_id: q.opd_qs_slot_id, room_id: q.opd_qs_room_id, location_id: this.locationId }).subscribe(() => {
       this.selected = null;
@@ -342,7 +374,7 @@ export class CallerComponent implements OnInit {
   }
 
   callNext() {
-    const next = this.queues.find(q => !['N', 'W'].includes(q.call_status));
+    const next = this.queues.find(q => !['N', 'W', 'P'].includes(q.call_status));
     if (next) {
       this.selected = next;
       this.callQueue(next);
@@ -391,6 +423,10 @@ export class CallerComponent implements OnInit {
     if (e.key === '3' && this.selectedTab(this.selected) === 'called') {
       e.preventDefault();
       this.holdQueue(this.selected);
+    }
+    if (e.key === '4' && this.selectedTab(this.selected) === 'waiting') {
+      e.preventDefault();
+      this.pharmacyQueue(this.selected);
     }
   }
 

@@ -86,7 +86,7 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
       </button>
     </main>
 
-    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode" [ngStyle]="displayFontStyle">
+    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode && !isMulti2Mode" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
           <a [href]="appRouteUrl('/display-device')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
@@ -157,6 +157,61 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         <span></span>
         <span>กลุ่มภารกิจสุขภาพดิจิทัล โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
       </footer>
+      <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
+        <i class="fa-solid fa-volume-high"></i>
+        <span>เปิดเสียงเรียกคิว</span>
+      </button>
+    </main>
+
+    <main class="multi2-display-page" *ngIf="!error && !loading && isMulti2Mode" [ngStyle]="displayFontStyle">
+      <header class="multi-display-header">
+        <div class="multi-title-group">
+          <a [href]="appRouteUrl('/display-device')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
+          <h1>{{title}}</h1>
+        </div>
+        <div class="multi-clock">เวลา&nbsp; {{clock}}</div>
+        <div class="multi-tools">
+          <button title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
+        </div>
+      </header>
+
+      <section class="multi2-top">
+        <div class="media-stage">
+          <img *ngIf="currentMedia && currentMedia.type !== 'youtube'" [src]="api.mediaUrl(currentMedia.file)" [alt]="currentMedia.label || 'media'">
+          <div class="youtube-frame-wrap" *ngIf="currentMedia?.type === 'youtube'">
+            <iframe #youtubeFrame [src]="youtubeEmbed(currentMedia)" (load)="syncYoutubeSound()" title="YouTube media" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+          </div>
+          <div *ngIf="!currentMedia" class="media-empty">ยังไม่มีสื่อแสดงผล</div>
+          <span class="media-counter" *ngIf="media.length">{{mediaIndex + 1}} / {{media.length}}</span>
+        </div>
+
+        <div class="quad-board">
+          <div class="quad-card" *ngFor="let r of quadRoomsData" [ngStyle]="queueColorStyle()">
+            <div class="room-number">{{r.room_number || r.room_id}}</div>
+            <div class="queue-number" [class.called]="isLastCalledRoom(r)" [class.active]="announcingRoomId === stringId(r.room_id)">
+              {{roomDisplayNo(r) || '---'}}
+              <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(r.active)">({{legacyNo(r.active)}})</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="called-panel">
+        <div class="called-label">
+          <i class="fa-solid fa-bullhorn"></i>
+          <b>เรียกแล้วไม่พบ</b>
+        </div>
+        <div class="called-list">
+          <div class="called-chip" *ngFor="let c of calledList" [ngStyle]="queueColorStyle()">
+            <strong>{{displayNo(c)}}</strong><span>#{{c.room_number || c.room_id}}</span>
+          </div>
+        </div>
+        <div class="qr-card">
+          <img [src]="qrSrc" alt="QR Code">
+          <b>สแกนเช็คคิวผ่านมือถือ</b>
+        </div>
+      </div>
+
       <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
         <i class="fa-solid fa-volume-high"></i>
         <span>เปิดเสียงเรียกคิว</span>
@@ -423,6 +478,24 @@ export class DisplayDeviceComponent implements OnInit {
 
   get isSingleMode() {
     return this.device?.device_type === 'single';
+  }
+
+  get isMulti2Mode() {
+    return this.device?.device_type === 'multi2';
+  }
+
+  // Up to 4 fixed slots. With 4 or fewer assigned rooms, each keeps its own slot (in room-number
+  // order). With more than 4, the rooms currently being called take priority so a room in the
+  // middle of a call is never bumped off screen, and the rest share the remaining slots.
+  get quadRoomsData() {
+    const ids: string[] = (this.device?.room_ids || []).map(String);
+    const pool = ids.map(id => this.roomsData.find(room => String(room.room_id) === id)).filter(Boolean) as any[];
+    if (pool.length <= 4) return pool;
+    const active = pool
+      .filter(room => room.active)
+      .sort((a, b) => new Date(b.active?.call_datetime || 0).getTime() - new Date(a.active?.call_datetime || 0).getTime());
+    const rest = pool.filter(room => !room.active);
+    return [...active, ...rest].slice(0, 4);
   }
 
   get singleRoom() {
