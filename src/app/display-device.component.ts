@@ -98,8 +98,8 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         </div>
       </header>
 
-      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6">
-        <section class="multi-left">
+      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" [class.no-media]="hideMedia()">
+        <section class="multi-left" *ngIf="!hideMedia()">
           <div class="media-stage">
             <img *ngIf="currentMedia && currentMedia.type !== 'youtube'" [src]="api.mediaUrl(currentMedia.file)" [alt]="currentMedia.label || 'media'">
             <div class="youtube-frame-wrap" *ngIf="currentMedia?.type === 'youtube'">
@@ -431,6 +431,10 @@ export class DisplayDeviceComponent implements OnInit {
 
   showLegacyQueue() {
     return !!this.device?.settings?.show_legacy_queue;
+  }
+
+  hideMedia() {
+    return !!this.device?.settings?.hide_media;
   }
 
   legacyNo(q: any) {

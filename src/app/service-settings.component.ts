@@ -263,6 +263,10 @@ import { displayFontFamily } from './display-color.util';
                 <input type="checkbox" [(ngModel)]="draftDevice.settings.show_legacy_queue">
                 แสดงคิวแบบเก่าด้วย (ตัวเล็กใต้คิวหลัก)
               </label>
+              <label class="inline-check" *ngIf="draftDevice.device_type === 'multi' || draftDevice.device_type === 'room-list'">
+                <input type="checkbox" [(ngModel)]="draftDevice.settings.hide_media">
+                ซ่อนสื่อ/โฆษณา (ขยายตารางคิวเต็มจอ)
+              </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="draftDevice.room_ids">
                   <option *ngFor="let r of rooms" [value]="stringId(r.opd_qs_room_id)">#{{r.opd_qs_room_number || r.opd_qs_room_id}} {{r.opd_qs_room_name}}</option>
@@ -292,6 +296,10 @@ import { displayFontFamily } from './display-color.util';
               <label class="inline-check">
                 <input type="checkbox" [(ngModel)]="d.settings.show_legacy_queue">
                 แสดงคิวแบบเก่าด้วย (ตัวเล็กใต้คิวหลัก)
+              </label>
+              <label class="inline-check" *ngIf="d.device_type === 'multi' || d.device_type === 'room-list'">
+                <input type="checkbox" [(ngModel)]="d.settings.hide_media">
+                ซ่อนสื่อ/โฆษณา (ขยายตารางคิวเต็มจอ)
               </label>
               <label>ห้องของ device นี้
                 <select multiple [(ngModel)]="d.room_ids">
@@ -465,7 +473,7 @@ export class ServiceSettingsComponent implements OnInit {
       room_ids: [],
       allowed_ips_text: '',
       active: true,
-      settings: { queue_limit: 6, show_legacy_queue: false },
+      settings: { queue_limit: 6, show_legacy_queue: false, hide_media: false },
     };
   }
 
@@ -608,7 +616,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   normalizeDevice(device: any) {
-    return { ...device, settings: { queue_limit: 6, show_legacy_queue: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
+    return { ...device, settings: { queue_limit: 6, show_legacy_queue: false, hide_media: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
   }
 
   // An entry only exists for a type once an admin explicitly creates it (createOverrideForActiveTab).
