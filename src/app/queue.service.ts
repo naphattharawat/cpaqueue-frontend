@@ -9,6 +9,12 @@ export class QueueService {
   readonly events$ = new Subject<any>();
   private ws?: WebSocket;
   private wsGeneration = 0;
+  private pingTimer?: ReturnType<typeof setInterval>;
+  private watchdogTimer?: ReturnType<typeof setInterval>;
+  private lastMessageAt = 0;
+  private readonly pingIntervalMs = 15000;
+  private readonly staleTimeoutMs = 45000;
+  private readonly watchdogCheckMs = 5000;
 
   constructor(private http: HttpClient, private zone: NgZone) {}
 
@@ -63,22 +69,42 @@ export class QueueService {
   connect(topics: string[], options: { deviceToken?: string } = {}) {
     const generation = ++this.wsGeneration;
     this.ws?.close();
+    this.clearWsTimers();
     const socket = new WebSocket(wsUrl(environment.wsBaseUrl, '/ws'));
     this.ws = socket;
     socket.onopen = () => {
       if (generation !== this.wsGeneration) return;
       socket.send(JSON.stringify({ type: 'subscribe', topics, deviceToken: options.deviceToken || '' }));
+      this.lastMessageAt = Date.now();
+      this.pingTimer = setInterval(() => {
+        if (generation !== this.wsGeneration || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({ type: 'ping' }));
+      }, this.pingIntervalMs);
+      this.watchdogTimer = setInterval(() => {
+        if (generation !== this.wsGeneration) return;
+        if (Date.now() - this.lastMessageAt > this.staleTimeoutMs) socket.close();
+      }, this.watchdogCheckMs);
+      this.zone.run(() => this.events$.next({ type: 'ws.reconnected' }));
     };
     socket.onmessage = ev => {
       if (generation !== this.wsGeneration) return;
+      this.lastMessageAt = Date.now();
       this.zone.run(() => this.events$.next(JSON.parse(ev.data)));
     };
     socket.onclose = () => {
       if (generation !== this.wsGeneration) return;
+      this.clearWsTimers();
       setTimeout(() => {
         if (generation === this.wsGeneration) this.connect(topics, options);
       }, 2000);
     };
+  }
+
+  private clearWsTimers() {
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+    this.pingTimer = undefined;
+    this.watchdogTimer = undefined;
   }
 
   mediaUrl(file: string) { return appUrl(environment.uploadBaseUrl, `/uploads/${file}`); }

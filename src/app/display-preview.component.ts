@@ -32,10 +32,15 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
 
           <div class="preview-room-list">
             <b>เลือกห้องที่ต้องการทดลองเรียก</b>
-            <button *ngFor="let room of rooms" type="button" (click)="simulateCall(room)" [disabled]="!frameReady || !queueNumber.trim()">
-              <span><strong>ห้อง {{room.opd_qs_room_number || room.opd_qs_room_id}}</strong><small>{{room.opd_qs_room_name}}</small></span>
-              <i class="fa-solid fa-bullhorn"></i>
-            </button>
+            <div class="preview-room-row" *ngFor="let room of rooms">
+              <button type="button" (click)="simulateCall(room)" [disabled]="!frameReady || !queueNumber.trim()">
+                <span><strong>ห้อง {{room.opd_qs_room_number || room.opd_qs_room_id}}</strong><small>{{room.opd_qs_room_name}}</small></span>
+                <i class="fa-solid fa-bullhorn"></i>
+              </button>
+              <button type="button" class="preview-hold-btn" title="ทดลองเรียกไม่พบ" (click)="simulateHold(room)" [disabled]="!frameReady || !queueNumber.trim()">
+                <i class="fa-solid fa-user-slash"></i>
+              </button>
+            </div>
           </div>
 
           <button class="btn preview-call-all" type="button" *ngIf="rooms.length > 1" (click)="simulateAll()" [disabled]="!frameReady || !queueNumber.trim()">
@@ -112,6 +117,17 @@ export class DisplayPreviewComponent implements OnInit {
     }, location.origin);
     const numeric = Number(queueNumber);
     if (advance && Number.isFinite(numeric)) this.queueNumber = String(numeric + 1);
+  }
+
+  simulateHold(room: any) {
+    const queueNumber = this.queueNumber.trim();
+    if (!queueNumber || !this.previewFrame?.nativeElement.contentWindow) return;
+    this.previewFrame.nativeElement.contentWindow.postMessage({
+      type: 'cpaqueue.preview.hold',
+      queueNo: queueNumber,
+      roomId: String(room.opd_qs_room_id),
+      roomNumber: String(room.opd_qs_room_number || room.opd_qs_room_id),
+    }, location.origin);
   }
 
   simulateAll() {

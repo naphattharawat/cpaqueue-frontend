@@ -39,13 +39,18 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
           <b>{{singleCurrentNumber !== '---' ? singleDestinationText : 'รอเรียกคิว'}}</b>
         </div>
 
-        <section class="hold-strip" *ngIf="calledList.length">
-          <h3><i class="fa-solid fa-user-clock"></i> หมายเลขที่เรียกผ่านไปแล้ว ({{calledList.length}} หมายเลข)</h3>
+        <section class="hold-strip" *ngIf="calledList.length && showCalledList()">
+          <h3><i class="fa-solid fa-user-clock"></i> เรียกแล้วไม่พบ ({{calledList.length}} หมายเลข)</h3>
           <div><span *ngFor="let q of calledList">{{displayNo(q)}}</span></div>
         </section>
       </section>
 
-      <footer><span></span><span></span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
+      <footer class="called-history-strip" *ngIf="calledHistory.length && showCalledHistory()">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <b>คิวที่เรียกไปแล้ว</b>
+        <span>{{calledHistoryText}}</span>
+      </footer>
+
       <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
         <i class="fa-solid fa-volume-high"></i><span>เปิดเสียงเรียกคิว</span>
       </button>
@@ -63,24 +68,31 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         </div>
       </header>
 
-      <section class="display-center dual-panes">
-        <div class="dual-pane" *ngFor="let i of [0, 1]">
-          <div class="room-pill"><i class="fa-solid fa-user-doctor"></i>{{dualRoomName(i)}}</div>
-          <div class="display-card active-card" [class.called]="isLastCalledRoom(dualRoom(i))" [class.pulse]="announcingRoomId === stringId(dualRoom(i)?.room_id)" [ngStyle]="queueColorStyle()">
-            <span>หมายเลขรับบริการปัจจุบัน</span>
-            <strong>{{dualCurrentNumber(i)}}</strong>
-            <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(dualRoom(i)?.active)">({{legacyNo(dualRoom(i)?.active)}})</small>
-            <b>{{dualCurrentNumber(i) !== '---' ? dualDestinationText(i) : 'รอเรียกคิว'}}</b>
+      <section class="display-center">
+        <div class="dual-panes">
+          <div class="dual-pane" *ngFor="let i of [0, 1]">
+            <div class="room-pill"><i class="fa-solid fa-user-doctor"></i>{{dualRoomLabel(i)}}</div>
+            <div class="display-card active-card" [class.called]="isLastCalledRoom(dualRoom(i))" [class.pulse]="announcingRoomId === stringId(dualRoom(i)?.room_id)" [ngStyle]="queueColorStyle()">
+              <span>หมายเลขรับบริการปัจจุบัน</span>
+              <strong>{{dualCurrentNumber(i)}}</strong>
+              <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(dualRoom(i)?.active)">({{legacyNo(dualRoom(i)?.active)}})</small>
+              <b *ngIf="dualCurrentNumber(i) === '---'">รอเรียกคิว</b>
+            </div>
           </div>
         </div>
+
+        <section class="hold-strip" *ngIf="calledList.length && showCalledList()">
+          <h3><i class="fa-solid fa-user-clock"></i> เรียกแล้วไม่พบ ({{calledList.length}} หมายเลข)</h3>
+          <div><span *ngFor="let q of calledList">{{displayNo(q)}}</span></div>
+        </section>
       </section>
 
-      <section class="hold-strip" *ngIf="calledList.length">
-        <h3><i class="fa-solid fa-user-clock"></i> หมายเลขที่เรียกผ่านไปแล้ว ({{calledList.length}} หมายเลข)</h3>
-        <div><span *ngFor="let q of calledList">{{displayNo(q)}}</span></div>
-      </section>
+      <footer class="called-history-strip" *ngIf="calledHistory.length && showCalledHistory()">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <b>คิวที่เรียกไปแล้ว</b>
+        <span>{{calledHistoryText}}</span>
+      </footer>
 
-      <footer><span></span><span></span><span>กลุ่มภารกิจสุขภาพดิจิทัล</span></footer>
       <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()">
         <i class="fa-solid fa-volume-high"></i><span>เปิดเสียงเรียกคิว</span>
       </button>
@@ -98,9 +110,9 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         </div>
       </header>
 
-      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" [class.no-media]="hideMedia()">
-        <section class="multi-left" *ngIf="!hideMedia()">
-          <div class="media-stage">
+      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" [class.no-media]="hideMedia() && !showCalledList()">
+        <section class="multi-left" *ngIf="!hideMedia() || showCalledList()">
+          <div class="media-stage" *ngIf="!hideMedia()">
             <img *ngIf="currentMedia && currentMedia.type !== 'youtube'" [src]="api.mediaUrl(currentMedia.file)" [alt]="currentMedia.label || 'media'">
             <div class="youtube-frame-wrap" *ngIf="currentMedia?.type === 'youtube'">
               <iframe #youtubeFrame [src]="youtubeEmbed(currentMedia)" (load)="syncYoutubeSound()" title="YouTube media" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
@@ -109,7 +121,7 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
             <span class="media-counter" *ngIf="media.length">{{mediaIndex + 1}} / {{media.length}}</span>
           </div>
 
-          <div class="called-panel">
+          <div class="called-panel" *ngIf="showCalledList()">
             <div class="called-label">
               <i class="fa-solid fa-bullhorn"></i>
               <b>เรียกแล้วไม่พบ</b>
@@ -232,6 +244,7 @@ export class DisplayDeviceComponent implements OnInit {
   roomsData: any[] = [];
   singleData: any = null;
   calledList: any[] = [];
+  calledHistory: any[] = [];
   title = 'หน้าจอแสดงหมายเลขรับบริการรวม';
   clock = '';
   media: any[] = [];
@@ -242,6 +255,8 @@ export class DisplayDeviceComponent implements OnInit {
   initialLoadDone = false;
   lastActiveByRoom = new Map<string, string>();
   displayedQueueByRoom = new Map<string, string>();
+  displayedQueuesByRoom = new Map<string, any[]>();
+  pendingRoomListItems = new Map<string, { roomId: string; item: any }>();
   announcingRoomId = '';
   lastCalledRoomId = '';
   lastCalledQueueNo = '';
@@ -315,6 +330,10 @@ export class DisplayDeviceComponent implements OnInit {
     });
 
     this.api.events$.subscribe(e => {
+      if (e.type === 'ws.reconnected' && this.device?.room_ids?.length) {
+        this.loadBoard();
+        return;
+      }
       if (e.type === 'queue.changed' && this.device?.room_ids?.length) {
         const eventRoomId = String(e.payload?.roomId ?? '');
         const eventQueueNo = this.eventDisplayNo(e.payload);
@@ -331,6 +350,7 @@ export class DisplayDeviceComponent implements OnInit {
           }
           this.roomsData = this.roomsData.map(room => String(room.room_id) === eventRoomId ? { ...room, active: null } : room);
           this.calledList = this.calledList.filter(item => String(item.room_id) !== eventRoomId);
+          if (slotId) this.pendingRoomListItems.delete(slotId);
         } else if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
           this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId, slotId);
         } else if (e.payload?.action === 'call' && eventRoomId) {
@@ -355,11 +375,13 @@ export class DisplayDeviceComponent implements OnInit {
             ...r,
             rooms_data: (r.rooms_data || []).map((room: any) => ({ ...room, active: null, queues: [] })),
             called_list: [],
+            called_history: [],
           };
         }
         this.singleData = this.isSingleMode ? r : null;
         this.roomsData = r.rooms_data || [];
         this.calledList = r.called_list || [];
+        this.calledHistory = r.called_history || [];
         this.callRepeatCount = this.normalizeRepeatCount(r.call_repeat_count);
         this.displaySettings = r.display_settings || {};
         this.title = this.roomsData[0]?.location_name
@@ -381,6 +403,24 @@ export class DisplayDeviceComponent implements OnInit {
         }
         this.lastActiveByRoom.set(key, activeSignature);
         this.suppressAnnounceRooms.delete(key);
+        if (this.isRoomListMode) {
+          const limit = Math.min(12, Math.max(1, Math.round(Number(this.device?.settings?.queue_limit) || 6)));
+          const freshQueues = Array.isArray(room.queues) ? room.queues : [];
+          if (!this.initialLoadDone) {
+            this.displayedQueuesByRoom.set(key, freshQueues.slice(0, limit));
+          } else {
+            const shownKeys = new Set((this.displayedQueuesByRoom.get(key) || []).map(q => this.roomListItemKey(q)));
+            for (const item of freshQueues) {
+              const itemKey = this.roomListItemKey(item);
+              if (!itemKey || shownKeys.has(itemKey) || this.pendingRoomListItems.has(itemKey)) continue;
+              if (this.voiceEnabled) {
+                this.pendingRoomListItems.set(itemKey, { roomId: key, item });
+              } else {
+                this.displayedQueuesByRoom.set(key, [item, ...(this.displayedQueuesByRoom.get(key) || [])].slice(0, limit));
+              }
+            }
+          }
+        }
       }
         this.initialLoadDone = true;
         if (!this.lastCalledRoomId) this.setLatestCalledFromData();
@@ -391,24 +431,50 @@ export class DisplayDeviceComponent implements OnInit {
 
   @HostListener('window:message', ['$event'])
   onPreviewMessage(event: MessageEvent) {
-    if (!this.demoMode || event.origin !== location.origin || event.data?.type !== 'cpaqueue.preview.call') return;
-    const roomId = String(event.data.roomId || '');
-    const queueNo = String(event.data.queueNo || '').trim();
-    const room = this.roomsData.find(item => String(item.room_id) === roomId);
-    if (!room || !queueNo) return;
-    const mockCall = {
-      call_id: `preview-${Date.now()}-${roomId}`,
-      opd_qs_slot_id: `preview-${Date.now()}-${roomId}`,
-      oqueue: queueNo,
-      queue_no: queueNo,
-      queue_slot_number: queueNo,
-      call_datetime: new Date().toISOString(),
-    };
-    this.roomsData = this.roomsData.map(item => String(item.room_id) === roomId
-      ? { ...item, active: mockCall, queues: [mockCall, ...(item.queues || [])].slice(0, Number(this.device?.settings?.queue_limit || 6)) }
-      : item);
-    this.enqueueQueueAudio(queueNo, String(event.data.roomNumber || room.room_number || roomId), roomId, mockCall.opd_qs_slot_id);
-    this.cdr.detectChanges();
+    if (!this.demoMode || event.origin !== location.origin) return;
+    const type = event.data?.type;
+    if (type === 'cpaqueue.preview.call') {
+      const roomId = String(event.data.roomId || '');
+      const queueNo = String(event.data.queueNo || '').trim();
+      const room = this.roomsData.find(item => String(item.room_id) === roomId);
+      if (!room || !queueNo) return;
+      const mockCall = {
+        call_id: `preview-${Date.now()}-${roomId}`,
+        opd_qs_slot_id: `preview-${Date.now()}-${roomId}`,
+        oqueue: queueNo,
+        queue_no: queueNo,
+        queue_slot_number: queueNo,
+        call_datetime: new Date().toISOString(),
+      };
+      this.roomsData = this.roomsData.map(item => String(item.room_id) === roomId
+        ? { ...item, active: mockCall, queues: [mockCall, ...(item.queues || [])].slice(0, Number(this.device?.settings?.queue_limit || 6)) }
+        : item);
+      this.calledHistory = [{
+        queue_no: queueNo,
+        oqueue: queueNo,
+        room_id: roomId,
+        room_number: String(event.data.roomNumber || room.room_number || roomId),
+        patient_name: '',
+        hn: '',
+      }, ...this.calledHistory].slice(0, 20);
+      this.enqueueQueueAudio(queueNo, String(event.data.roomNumber || room.room_number || roomId), roomId, mockCall.opd_qs_slot_id);
+      this.cdr.detectChanges();
+    } else if (type === 'cpaqueue.preview.hold') {
+      const roomId = String(event.data.roomId || '');
+      const queueNo = String(event.data.queueNo || '').trim();
+      const room = this.roomsData.find(item => String(item.room_id) === roomId);
+      if (!room || !queueNo) return;
+      const mockHold = {
+        queue_no: queueNo,
+        oqueue: queueNo,
+        room_id: roomId,
+        room_number: String(event.data.roomNumber || room.room_number || roomId),
+        patient_name: '',
+        hn: '',
+      };
+      this.calledList = [mockHold, ...this.calledList].slice(0, 20);
+      this.cdr.detectChanges();
+    }
   }
 
   loadMedia() {
@@ -435,6 +501,18 @@ export class DisplayDeviceComponent implements OnInit {
 
   hideMedia() {
     return !!this.device?.settings?.hide_media;
+  }
+
+  showCalledList() {
+    return this.device?.settings?.show_called_list !== false;
+  }
+
+  showCalledHistory() {
+    return !!this.device?.settings?.show_called_history;
+  }
+
+  get calledHistoryText() {
+    return this.calledHistory.map(q => this.displayNo(q)).filter(Boolean).join('   •   ');
   }
 
   legacyNo(q: any) {
@@ -551,20 +629,30 @@ export class DisplayDeviceComponent implements OnInit {
     return this.roomDisplayNo(this.dualRoom(index)) || '---';
   }
 
-  dualRoomName(index: number) {
-    const room = this.dualRoom(index);
-    return room?.room_name || `ห้อง ${room?.room_number || ''}`.trim();
-  }
-
-  dualDestinationText(index: number) {
+  dualRoomLabel(index: number) {
     const label = String(this.displaySettings?.destination_label || 'ห้องตรวจ').trim();
     const room = this.dualRoom(index);
     const roomNumber = String(room?.room_number || room?.room_id || '').trim();
-    return `${label.startsWith('ที่') ? '' : 'ที่ '}${label}${roomNumber ? ` ${roomNumber}` : ''}`.trim();
+    return `${label}${roomNumber ? ` ${roomNumber}` : ''}`.trim();
   }
 
   roomQueues(room: any) {
-    return Array.isArray(room?.queues) ? room.queues : [];
+    return this.displayedQueuesByRoom.get(String(room?.room_id)) || [];
+  }
+
+  roomListItemKey(item: any) {
+    return String(item?.slot_id ?? item?.opd_qs_slot_id ?? item?.call_id ?? '');
+  }
+
+  revealRoomListItem(key: string) {
+    const pending = this.pendingRoomListItems.get(key);
+    if (!pending) return;
+    this.pendingRoomListItems.delete(key);
+    const { roomId, item } = pending;
+    const limit = Math.min(12, Math.max(1, Math.round(Number(this.device?.settings?.queue_limit) || 6)));
+    const current = this.displayedQueuesByRoom.get(roomId) || [];
+    if (current.some(q => this.roomListItemKey(q) === key)) return;
+    this.displayedQueuesByRoom.set(roomId, [item, ...current].slice(0, limit));
   }
 
   timeText(value: any) {
@@ -629,7 +717,7 @@ export class DisplayDeviceComponent implements OnInit {
       const item = this.audioQueue.shift();
       if (item) {
         for (let i = 0; i < this.callRepeatCount; i += 1) {
-          const played = await this.speakQueue(item.queueNo, item.roomNumber, item.roomId);
+          const played = await this.speakQueue(item.queueNo, item.roomNumber, item.roomId, item.slotId);
           if (!played) {
             this.audioQueue.unshift(item);
             this.audioQueueRunning = false;
@@ -662,9 +750,10 @@ export class DisplayDeviceComponent implements OnInit {
     }
   }
 
-  async speakQueue(queueNo: string, roomNumber: string, roomId: string) {
+  async speakQueue(queueNo: string, roomNumber: string, roomId: string, slotId?: string) {
     if (!this.voiceEnabled) return true;
     this.displayedQueueByRoom.set(String(roomId), queueNo);
+    if (slotId) this.revealRoomListItem(slotId);
     this.announcingRoomId = roomId;
     this.cdr.detectChanges();
     this.duckYoutubeAudio(true);
@@ -730,6 +819,7 @@ export class DisplayDeviceComponent implements OnInit {
     }
     this.audioQueue = [];
     this.audioQueueRunning = false;
+    for (const key of [...this.pendingRoomListItems.keys()]) this.revealRoomListItem(key);
   }
 
   duckYoutubeAudio(active: boolean) {
