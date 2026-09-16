@@ -54,6 +54,9 @@ import { appRouteUrl } from './app-url.util';
       </label>
 
       <button class="btn" (click)="loadQueues()"><i class="fa-solid fa-rotate"></i> F5</button>
+      <label>ค้นหาคิว
+        <input class="caller-queue-search" type="search" [(ngModel)]="queueQuery" placeholder="หมายเลขคิว" (keydown.enter)="searchQueue(); $event.preventDefault()" [disabled]="!locationId">
+      </label>
       <a *ngIf="isAdminUser" class="btn display" [href]="displayLink" target="_blank"><i class="fa-solid fa-tv"></i> Display</a>
     </section>
 
@@ -130,6 +133,27 @@ import { appRouteUrl } from './app-url.util';
         <div class="empty-row" *ngIf="filteredQueues().length===0">ไม่มีข้อมูลคิว</div>
       </section>
     </main>
+    <div class="caller-search-backdrop" *ngIf="queueSearchOpen" (click)="closeQueueSearch()">
+      <section class="caller-search-dialog" role="dialog" aria-modal="true" aria-labelledby="queue-search-title" (click)="$event.stopPropagation()">
+        <header><h2 id="queue-search-title">หมายเลข {{searchedQueueNumber}}</h2><button type="button" class="icon-btn" title="ปิด" (click)="closeQueueSearch()"><i class="fa-solid fa-xmark"></i></button></header>
+        <p *ngIf="!queueSearchResults.length">ไม่พบคิวในรายการของจุดบริการและแพทย์ที่เลือก</p>
+        <article class="caller-search-result" *ngFor="let q of queueSearchResults">
+          <strong class="caller-search-number">{{q.oqueue || q.queue_slot_number}}</strong>
+          <b>{{statusText(q.call_status)}}</b>
+          <p>{{q.patient_name}} · ห้อง {{q.room_number || q.opd_qs_room_id}} · {{q.doctor_name || '-'}}</p>
+          <div class="actions">
+            <button type="button" class="btn-call" (click)="selected=q; callQueue(q)">{{selectedTab(q) === 'called' ? 'เรียกซ้ำ' : 'เรียกคิว'}}</button>
+            <button type="button" class="btn-warning" *ngIf="selectedTab(q) === 'waiting' || selectedTab(q) === 'called'" (click)="selected=q; holdQueue(q)">{{selectedTab(q) === 'called' ? 'เรียกไม่พบ' : 'ไม่พบ'}}</button>
+            <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'waiting'" (click)="selected=q; pharmacyQueue(q)">เติมยา/ไปรฯ</button>
+            <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'called'" (click)="selected=q; cancelQueue(q)">ยกเลิกเรียก</button>
+          </div>
+          <div class="pooled-doctor-actions" *ngIf="pooledCallEnabled">
+            <b>เรียกเข้าห้องแพทย์</b>
+            <button type="button" *ngFor="let d of doctors" [disabled]="!doctorRoomId(d)" (click)="selected=q; callQueueForDoctor(q, d)">{{d.name}} <span>{{d.room_number ? '#' + d.room_number : d.room_name}}</span></button>
+          </div>
+        </article>
+      </section>
+    </div>
   `
 })
 export class CallerComponent implements OnInit {
@@ -145,6 +169,26 @@ export class CallerComponent implements OnInit {
   displayLink = appRouteUrl('/display');
   doctorOpen = false;
   doctorQuery = '';
+  queueQuery = '';
+  searchedQueueNumber = '';
+  queueSearchOpen = false;
+
+  get queueSearchResults() {
+    return this.queues.filter(q => [q.oqueue, q.queue_slot_number].some(value =>
+      value != null && String(value).trim().toLowerCase() === this.searchedQueueNumber.toLowerCase()));
+  }
+
+  searchQueue() {
+    const number = this.queueQuery.trim();
+    if (!this.locationId || !number) return;
+    this.searchedQueueNumber = number;
+    this.queueSearchOpen = true;
+    this.doctorOpen = false;
+  }
+
+  closeQueueSearch() {
+    this.queueSearchOpen = false;
+  }
   pooledCallEnabled = false;
   isAdminUser = false;
   private loadQueuesWatchdog?: number;
@@ -230,6 +274,7 @@ export class CallerComponent implements OnInit {
   }
 
   locationChanged(clear = true) {
+    this.closeQueueSearch();
     localStorage.setItem('caller_location_id', this.locationId);
     if (clear) this.selectedDoctorCodes = [];
     this.applyLocationConfig();
@@ -252,6 +297,7 @@ export class CallerComponent implements OnInit {
   }
 
   doctorChanged() {
+    this.closeQueueSearch();
     this.normalizeSelectedDoctors();
     localStorage.setItem('caller_doctor_codes', JSON.stringify(this.selectedDoctorCodes));
     this.updateDisplayLink();
@@ -406,6 +452,10 @@ export class CallerComponent implements OnInit {
 
   @HostListener('document:keydown', ['$event'])
   hotkey(e: KeyboardEvent) {
+    if (this.queueSearchOpen) {
+      if (e.key === 'Escape') this.closeQueueSearch();
+      return;
+    }
     if (!this.selected) return;
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     if (e.key === '1') {

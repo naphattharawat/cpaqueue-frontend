@@ -98,39 +98,40 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
       </button>
     </main>
 
-    <main class="grid-display-page" *ngIf="!error && !loading && isRoomGridMode" [ngStyle]="displayFontStyle">
+    <main class="grid-display-page service-grid-display" *ngIf="!error && !loading && isRoomGridMode" [ngStyle]="displayFontStyle">
       <header class="grid-display-header">
         <div class="grid-header-left">
-          <span class="icon-btn light"><i class="fa-solid fa-hospital"></i></span>
-          <h2>{{gridLocationName}}</h2>
+          <div><small>หน้าจอสถานะรับบริการ</small><h2>{{gridLocationName}}</h2><small class="grid-clock">{{gridDateText}} เวลา {{clock}} น.</small></div>
         </div>
         <div class="grid-header-right">
           <div class="grid-header-right-text">
-            <h1>หมายเลขรับบริการ</h1>
-            <small>{{gridDateText}} | {{clock}} น.</small>
+            <i class="fa-solid fa-hospital" aria-hidden="true"></i>
           </div>
           <button class="icon-btn light" title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
         </div>
       </header>
 
       <section class="grid-display-body" [style.grid-template-columns]="'repeat(' + roomsData.length + ', 1fr)'">
-        <div class="grid-room-card" *ngFor="let r of roomsData; trackBy: trackByRoomId" [class.active]="r.is_latest" [class.pulse]="announcingRoomId === stringId(r.room_id)" [ngStyle]="r.is_latest ? queueColorStyle() : null">
+        <div class="grid-room-card" *ngFor="let r of roomsData; trackBy: trackByRoomId" [class.active]="isLastCalledRoom(r) || announcingRoomId === stringId(r.room_id)" [class.pulse]="announcingRoomId === stringId(r.room_id)" [ngStyle]="queueColorStyle()">
           <div class="grid-room-head">ห้องตรวจ {{r.room_number || r.room_id}}</div>
           <div class="grid-room-number"><strong>{{roomDisplayNo(r) || '---'}}</strong></div>
+          <div class="grid-next-queues"><small>หมายเลขถัดไป</small><b><ng-container *ngFor="let q of (r.next_queues || []).slice(0, 3); let last = last">{{displayNo(q)}}<span *ngIf="!last"> | </span></ng-container><ng-container *ngIf="!r.next_queues?.length">---</ng-container></b></div>
         </div>
       </section>
 
       <footer class="grid-footer">
         <div class="grid-footer-history">
-          <b>คิวที่เรียกไม่พบ</b>
+          <b>หมายเลขที่เรียกแล้วไม่พบ / รอเรียกซ้ำ</b>
           <div class="grid-footer-marquee">
-            <span #gridHistoryTrack class="grid-footer-marquee-track" [class.scrolling]="gridHistoryScrolling" [style.--marquee-distance]="(-gridHistoryDistance) + 'px'" [style.animation-duration.s]="gridHistoryDuration">{{calledListText || '—'}}</span>
+            <span #gridHistoryTrack class="grid-footer-marquee-track" [class.scrolling]="gridHistoryScrolling" [style.--marquee-distance]="(-gridHistoryDistance) + 'px'" [style.animation-duration.s]="gridHistoryDuration"><span class="grid-hold-chip" *ngFor="let q of calledList">{{displayNo(q)}}</span><span *ngIf="!calledList.length">---</span></span>
           </div>
         </div>
         <div class="grid-footer-qr">
+          <div><i class="fa-solid fa-angles-right" aria-hidden="true"></i><b>ติดตาม<br>สถานะที่นี่</b></div>
           <img [src]="qrSrc" alt="QR Code">
         </div>
       </footer>
+      <button class="sound-unlock" *ngIf="voiceEnabled && !audioUnlocked" (click)="unlockAudio()"><i class="fa-solid fa-volume-high"></i><span>เปิดเสียงเรียกคิว</span></button>
     </main>
 
     <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode && !isMulti2Mode && !isRoomGridMode" [ngStyle]="displayFontStyle">
