@@ -58,6 +58,9 @@ export class QueueService {
   displayDevice(token: string) { return this.http.get<any>(this.api('/display-devices/display'), { params: { token } }); }
   previewDisplayDevice(deviceId: string) { return this.http.get<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/preview`)); }
   previewDisplayDeviceData(deviceId: string) { return this.http.get<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/preview-data`)); }
+  sandboxDisplayData(deviceType: string, roomIds: string, queueLimit = 6) {
+    return this.http.get<any>(this.api('/display-devices/preview-sandbox'), { params: { device_type: deviceType, room_ids: roomIds, queue_limit: String(queueLimit) } });
+  }
   updateDisplayDevice(deviceId: string, body: any) { return this.http.put<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`), body); }
   rotateDisplayDeviceToken(deviceId: string) { return this.http.post<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/rotate-token`), {}); }
   deleteDisplayDevice(deviceId: string) { return this.http.delete<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`)); }

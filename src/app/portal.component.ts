@@ -21,6 +21,7 @@ import { AuthService, AuthUser } from './auth.service';
         <a *ngIf="isAdminUser" routerLink="/service-settings" class="portal-card"><i class="fa-solid fa-sliders"></i><strong>Service Settings</strong><span>ตั้งค่าจุดบริการ เสียง และ device token</span></a>
         <a *ngIf="isAdminUser" routerLink="/audio-settings" class="portal-card"><i class="fa-solid fa-file-audio"></i><strong>Audio Settings</strong><span>อัปโหลด ตั้งชื่อ และทดสอบไฟล์เสียง</span></a>
         <a *ngIf="isAdminUser" routerLink="/default-colors" class="portal-card"><i class="fa-solid fa-palette"></i><strong>Default Colors</strong><span>ตั้งค่าสีเริ่มต้นสำหรับปุ่ม "คืนค่าเริ่มต้น"</span></a>
+        <a *ngIf="isAdminUser" routerLink="/display-playground" class="portal-card"><i class="fa-solid fa-vial"></i><strong>ทดลองหน้าจอ</strong><span>ทดลองทุกแบบจอโดยไม่ต้องผูก device จริง</span></a>
       </nav>
     </main>
   `

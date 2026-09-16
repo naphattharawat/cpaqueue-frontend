@@ -10,6 +10,7 @@ import { AudioSettingsComponent } from './audio-settings.component';
 import { DefaultColorsComponent } from './default-colors.component';
 import { DisplayDeviceComponent } from './display-device.component';
 import { DisplayPreviewComponent } from './display-preview.component';
+import { DisplayPlaygroundComponent } from './display-playground.component';
 import { RoomListDisplayComponent } from './room-list-display.component';
 import { DashboardComponent } from './dashboard.component';
 import { LoginComponent } from './login.component';
@@ -25,6 +26,7 @@ export const routes: Routes = [
   { path: 'display-room-list', component: RoomListDisplayComponent, canActivate: [adminGuard] },
   { path: 'display-device', component: DisplayDeviceComponent },
   { path: 'display-preview', component: DisplayPreviewComponent, canActivate: [adminGuard] },
+  { path: 'display-playground', component: DisplayPlaygroundComponent, canActivate: [adminGuard] },
   { path: 'check-queue', component: CheckQueueComponent },
   { path: 'dashboard', component: DashboardComponent, canActivate: [adminGuard] },
   { path: 'media-manager', component: MediaManagerComponent, canActivate: [adminGuard] },

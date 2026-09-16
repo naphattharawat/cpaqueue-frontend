@@ -255,6 +255,7 @@ import { displayFontFamily } from './display-color.util';
                 <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
                 <option value="dual">จอคู่ (ซ้าย-ขวา 2 ห้อง)</option>
                 <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
+                <option value="room-grid">จอ 1-4 ห้อง (การ์ดสี + คิวถัดไป)</option>
               </select>
               <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
                 <input type="number" min="1" max="12" step="1" [(ngModel)]="draftDevice.settings.queue_limit" placeholder="จำนวนคิว">
@@ -267,7 +268,7 @@ import { displayFontFamily } from './display-color.util';
                 <input type="checkbox" [(ngModel)]="draftDevice.settings.hide_media">
                 ซ่อนสื่อ/โฆษณา (ขยายตารางคิวเต็มจอ)
               </label>
-              <label class="inline-check" *ngIf="draftDevice.device_type !== 'multi2'">
+              <label class="inline-check" *ngIf="draftDevice.device_type !== 'multi2' && draftDevice.device_type !== 'room-grid'">
                 <input type="checkbox" [(ngModel)]="draftDevice.settings.show_called_list">
                 แสดงรายการ "เรียกแล้วไม่พบ"
               </label>
@@ -282,6 +283,7 @@ import { displayFontFamily } from './display-color.util';
                 <small *ngIf="draftDevice.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
                 <small *ngIf="draftDevice.device_type === 'dual'">เลือกให้ครบ 2 ห้อง — ห้องที่เลขน้อยกว่าจะอยู่ฝั่งซ้าย เลขมากกว่าอยู่ฝั่งขวา</small>
                 <small *ngIf="draftDevice.device_type === 'multi2'">แสดงได้สูงสุด 4 ห้อง — เลือก 4 ห้องหรือน้อยกว่าจะขึ้นตรึงตามที่เลือก ถ้าเลือกมากกว่า 4 ห้อง จะสลับกันแสดงโดยเน้นห้องที่กำลังเรียกก่อน</small>
+                <small *ngIf="draftDevice.device_type === 'room-grid'">แนะนำ 1-4 ห้อง — การ์ดจะขยายเต็มความกว้างจอเสมอตามจำนวนห้องที่เลือก</small>
               </label>
               <button class="btn" (click)="createDevice()">สร้าง token</button>
             </article>
@@ -295,6 +297,7 @@ import { displayFontFamily } from './display-color.util';
                   <option value="single">จอเดี่ยว (แสดงทีละคิว)</option>
                   <option value="dual">จอคู่ (ซ้าย-ขวา 2 ห้อง)</option>
                   <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
+                  <option value="room-grid">จอ 1-4 ห้อง (การ์ดสี + คิวถัดไป)</option>
                 </select>
                 <label class="inline-check"><input type="checkbox" [(ngModel)]="d.active"> active</label>
               </div>
@@ -309,7 +312,7 @@ import { displayFontFamily } from './display-color.util';
                 <input type="checkbox" [(ngModel)]="d.settings.hide_media">
                 ซ่อนสื่อ/โฆษณา (ขยายตารางคิวเต็มจอ)
               </label>
-              <label class="inline-check" *ngIf="d.device_type !== 'multi2'">
+              <label class="inline-check" *ngIf="d.device_type !== 'multi2' && d.device_type !== 'room-grid'">
                 <input type="checkbox" [(ngModel)]="d.settings.show_called_list">
                 แสดงรายการ "เรียกแล้วไม่พบ"
               </label>
@@ -324,6 +327,7 @@ import { displayFontFamily } from './display-color.util';
                 <small *ngIf="d.device_type === 'single'">เลือกได้หลายห้อง จอจะแสดงทีละคิวตามลำดับการเรียก</small>
                 <small *ngIf="d.device_type === 'dual'">เลือกให้ครบ 2 ห้อง — ห้องที่เลขน้อยกว่าจะอยู่ฝั่งซ้าย เลขมากกว่าอยู่ฝั่งขวา</small>
                 <small *ngIf="d.device_type === 'multi2'">แสดงได้สูงสุด 4 ห้อง — เลือก 4 ห้องหรือน้อยกว่าจะขึ้นตรึงตามที่เลือก ถ้าเลือกมากกว่า 4 ห้อง จะสลับกันแสดงโดยเน้นห้องที่กำลังเรียกก่อน</small>
+                <small *ngIf="d.device_type === 'room-grid'">แนะนำ 1-4 ห้อง — การ์ดจะขยายเต็มความกว้างจอเสมอตามจำนวนห้องที่เลือก</small>
               </label>
               <div class="device-actions">
                 <button class="btn" (click)="saveDevice(d)">บันทึก device</button>
@@ -370,8 +374,9 @@ export class ServiceSettingsComponent implements OnInit {
     { key: 'multi', label: 'จอรวม' },
     { key: 'multi2', label: 'จอรวม 2' },
     { key: 'room-list', label: 'Room-list' },
+    { key: 'room-grid', label: 'จอ 1-4 ห้อง' },
   ];
-  overridableDeviceTypes = ['single', 'dual', 'multi', 'multi2', 'room-list'];
+  overridableDeviceTypes = ['single', 'dual', 'multi', 'multi2', 'room-list', 'room-grid'];
 
   constructor(private api: QueueService) {}
 

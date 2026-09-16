@@ -98,7 +98,42 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
       </button>
     </main>
 
-    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode && !isMulti2Mode" [ngStyle]="displayFontStyle">
+    <main class="grid-display-page" *ngIf="!error && !loading && isRoomGridMode" [ngStyle]="displayFontStyle">
+      <header class="grid-display-header">
+        <div class="grid-header-left">
+          <span class="icon-btn light"><i class="fa-solid fa-hospital"></i></span>
+          <h2>{{gridLocationName}}</h2>
+        </div>
+        <div class="grid-header-right">
+          <div class="grid-header-right-text">
+            <h1>หมายเลขรับบริการ</h1>
+            <small>{{gridDateText}} | {{clock}} น.</small>
+          </div>
+          <button class="icon-btn light" title="เต็มจอ" (click)="toggleFullScreen()"><i class="fa-solid fa-expand"></i></button>
+        </div>
+      </header>
+
+      <section class="grid-display-body" [style.grid-template-columns]="'repeat(' + roomsData.length + ', 1fr)'">
+        <div class="grid-room-card" *ngFor="let r of roomsData; trackBy: trackByRoomId" [class.active]="r.is_latest" [class.pulse]="announcingRoomId === stringId(r.room_id)" [ngStyle]="r.is_latest ? queueColorStyle() : null">
+          <div class="grid-room-head">ห้องตรวจ {{r.room_number || r.room_id}}</div>
+          <div class="grid-room-number"><strong>{{roomDisplayNo(r) || '---'}}</strong></div>
+        </div>
+      </section>
+
+      <footer class="grid-footer">
+        <div class="grid-footer-history">
+          <b>คิวที่เรียกไม่พบ</b>
+          <div class="grid-footer-marquee">
+            <span #gridHistoryTrack class="grid-footer-marquee-track" [class.scrolling]="gridHistoryScrolling" [style.--marquee-distance]="(-gridHistoryDistance) + 'px'" [style.animation-duration.s]="gridHistoryDuration">{{calledListText || '—'}}</span>
+          </div>
+        </div>
+        <div class="grid-footer-qr">
+          <img [src]="qrSrc" alt="QR Code">
+        </div>
+      </footer>
+    </main>
+
+    <main class="multi-display-page" *ngIf="!error && !loading && !isSingleMode && !isDualMode && !isMulti2Mode && !isRoomGridMode" [ngStyle]="displayFontStyle">
       <header class="multi-display-header">
         <div class="multi-title-group">
           <a [href]="appRouteUrl('/display-device')" class="multi-logo"><i class="fa-solid fa-hospital"></i></a>
@@ -110,7 +145,7 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         </div>
       </header>
 
-      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" [class.no-media]="hideMedia() && !showCalledList()">
+      <section class="multi-display-body" [class.many-rooms]="roomsData.length > 6" [class.no-media]="hideMedia() && !showCalledList()" [class.media-hidden]="hideMedia() && isRoomListMode">
         <section class="multi-left" *ngIf="!hideMedia() || showCalledList()">
           <div class="media-stage" *ngIf="!hideMedia()">
             <img *ngIf="currentMedia && currentMedia.type !== 'youtube'" [src]="api.mediaUrl(currentMedia.file)" [alt]="currentMedia.label || 'media'">
@@ -145,7 +180,7 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
             <span class="portrait-extra portrait-third">ห้อง</span><span class="portrait-extra portrait-third">หมายเลขรับบริการ</span>
           </div>
           <div class="room-board-scroll">
-            <div class="room-row" *ngFor="let r of roomsData" [class.room-list-mode]="isRoomListMode" [ngStyle]="queueColorStyle()">
+            <div class="room-row" *ngFor="let r of roomsData; trackBy: trackByRoomId" [class.room-list-mode]="isRoomListMode" [ngStyle]="queueColorStyle()">
               <div class="room-number">{{r.room_number || r.room_id}}</div>
               <div class="queue-number" *ngIf="!isRoomListMode" [class.called]="isLastCalledRoom(r)" [class.active]="announcingRoomId === stringId(r.room_id)">
                 {{roomDisplayNo(r) || '---'}}
@@ -198,7 +233,7 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
         </div>
 
         <div class="quad-board">
-          <div class="quad-card" *ngFor="let r of quadRoomsData" [ngStyle]="queueColorStyle()">
+          <div class="quad-card" *ngFor="let r of quadRoomsData; trackBy: trackByRoomId" [ngStyle]="queueColorStyle()">
             <div class="room-number">{{r.room_number || r.room_id}}</div>
             <div class="queue-number" [class.called]="isLastCalledRoom(r)" [class.active]="announcingRoomId === stringId(r.room_id)">
               {{roomDisplayNo(r) || '---'}}
@@ -233,16 +268,23 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
 })
 export class DisplayDeviceComponent implements OnInit {
   @ViewChild('youtubeFrame') youtubeFrame?: ElementRef<HTMLIFrameElement>;
+  @ViewChild('gridHistoryTrack') gridHistoryTrack?: ElementRef<HTMLElement>;
+  gridHistoryScrolling = false;
+  gridHistoryDistance = 0;
+  gridHistoryDuration = 10;
 
   token = '';
   previewId = '';
   demoMode = false;
+  sandboxMode = false;
+  sandboxColorOverride: any = null;
   device: any = null;
   loading = true;
   error = false;
   message = 'กำลังตรวจสอบ device token...';
   roomsData: any[] = [];
   singleData: any = null;
+  trackByRoomId(_index: number, room: any) { return room?.room_id; }
   calledList: any[] = [];
   calledHistory: any[] = [];
   title = 'หน้าจอแสดงหมายเลขรับบริการรวม';
@@ -285,6 +327,34 @@ export class DisplayDeviceComponent implements OnInit {
   appRouteUrl = appRouteUrl;
 
   ngOnInit() {
+    if (this.route.snapshot.queryParamMap.get('sandbox') === '1') {
+      this.sandboxMode = true;
+      this.demoMode = true;
+      const deviceType = this.route.snapshot.queryParamMap.get('device_type') || 'multi';
+      const roomIds = (this.route.snapshot.queryParamMap.get('room_ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+      const locationId = this.route.snapshot.queryParamMap.get('location_id') || '';
+      const queueLimit = Number(this.route.snapshot.queryParamMap.get('queue_limit') || 6);
+      if (!roomIds.length) { this.showError('กรุณาเลือกห้องอย่างน้อย 1 ห้อง'); return; }
+      const colorOverrideRaw = this.route.snapshot.queryParamMap.get('queue_colors_override');
+      if (colorOverrideRaw) {
+        try { this.sandboxColorOverride = JSON.parse(colorOverrideRaw); } catch { this.sandboxColorOverride = null; }
+      }
+      this.device = {
+        device_id: 'sandbox', device_type: deviceType, room_ids: roomIds, location_id: locationId,
+        settings: {
+          queue_limit: queueLimit,
+          show_legacy_queue: this.route.snapshot.queryParamMap.get('show_legacy_queue') === '1',
+          hide_media: this.route.snapshot.queryParamMap.get('hide_media') === '1',
+          show_called_list: this.route.snapshot.queryParamMap.get('show_called_list') !== '0',
+          show_called_history: this.route.snapshot.queryParamMap.get('show_called_history') === '1',
+        },
+      };
+      this.loading = false;
+      this.loadBoard();
+      if (locationId) this.loadMedia();
+      return;
+    }
+
     const queryToken = this.route.snapshot.queryParamMap.get('token') || '';
     this.previewId = this.route.snapshot.queryParamMap.get('preview_id') || '';
     this.demoMode = this.previewId !== '' && this.route.snapshot.queryParamMap.get('demo') === '1';
@@ -365,12 +435,14 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   loadBoard() {
-    const displayRequest = this.previewId
-      ? this.api.previewDisplayDeviceData(this.previewId)
-      : this.api.displayDevice(this.token);
+    const displayRequest = this.sandboxMode
+      ? this.api.sandboxDisplayData(this.device.device_type, this.device.room_ids.join(','), Number(this.device.settings?.queue_limit || 6))
+      : this.previewId
+        ? this.api.previewDisplayDeviceData(this.previewId)
+        : this.api.displayDevice(this.token);
     displayRequest.subscribe({
       next: r => {
-        if (this.demoMode && !this.initialLoadDone) {
+        if (this.demoMode && !this.sandboxMode && !this.initialLoadDone) {
           r = {
             ...r,
             rooms_data: (r.rooms_data || []).map((room: any) => ({ ...room, active: null, queues: [] })),
@@ -384,6 +456,14 @@ export class DisplayDeviceComponent implements OnInit {
         this.calledHistory = r.called_history || [];
         this.callRepeatCount = this.normalizeRepeatCount(r.call_repeat_count);
         this.displaySettings = r.display_settings || {};
+        if (this.sandboxMode && this.sandboxColorOverride) {
+          const { queue_font_weight, ...colorFields } = this.sandboxColorOverride;
+          this.displaySettings = {
+            ...this.displaySettings,
+            queue_colors: { ...(this.displaySettings.queue_colors || {}), ...colorFields },
+            ...(queue_font_weight ? { queue_font_weight } : {}),
+          };
+        }
         this.title = this.roomsData[0]?.location_name
           ? `หน้าจอแสดงหมายเลขรับบริการ${this.isSingleMode ? '' : 'รวม'} ${this.roomsData[0].location_name}`
           : `หน้าจอแสดงหมายเลขรับบริการ${this.isSingleMode ? '' : 'รวม'}`;
@@ -424,9 +504,32 @@ export class DisplayDeviceComponent implements OnInit {
       }
         this.initialLoadDone = true;
         if (!this.lastCalledRoomId) this.setLatestCalledFromData();
+        if (this.isRoomGridMode) setTimeout(() => this.checkGridHistoryOverflow(), 0);
       },
       error: err => this.showError(err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'โหลดข้อมูลหน้าจอไม่สำเร็จ'),
     });
+  }
+
+  checkGridHistoryOverflow() {
+    const el = this.gridHistoryTrack?.nativeElement;
+    const container = el?.parentElement;
+    if (!el || !container) return;
+    // Measure the text's true unconstrained width via a detached clone: the in-place
+    // inline-block can end up laid out no wider than its overflow:hidden ancestor, which
+    // makes its own scrollWidth useless for detecting whether it actually overflows.
+    const probe = el.cloneNode(true) as HTMLElement;
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.left = '-9999px';
+    probe.style.width = 'auto';
+    probe.style.display = 'inline-block';
+    document.body.appendChild(probe);
+    const naturalWidth = probe.scrollWidth;
+    probe.remove();
+    const overflow = naturalWidth - container.clientWidth;
+    this.gridHistoryScrolling = overflow > 4;
+    this.gridHistoryDistance = Math.max(0, overflow);
+    this.gridHistoryDuration = Math.max(6, Math.round(this.gridHistoryDistance / 40));
   }
 
   @HostListener('window:message', ['$event'])
@@ -447,8 +550,8 @@ export class DisplayDeviceComponent implements OnInit {
         call_datetime: new Date().toISOString(),
       };
       this.roomsData = this.roomsData.map(item => String(item.room_id) === roomId
-        ? { ...item, active: mockCall, queues: [mockCall, ...(item.queues || [])].slice(0, Number(this.device?.settings?.queue_limit || 6)) }
-        : item);
+        ? { ...item, active: mockCall, is_latest: true, queues: [mockCall, ...(item.queues || [])].slice(0, Number(this.device?.settings?.queue_limit || 6)) }
+        : { ...item, is_latest: false });
       this.calledHistory = [{
         queue_no: queueNo,
         oqueue: queueNo,
@@ -515,6 +618,10 @@ export class DisplayDeviceComponent implements OnInit {
     return this.calledHistory.map(q => this.displayNo(q)).filter(Boolean).join('   •   ');
   }
 
+  get calledListText() {
+    return this.calledList.map(q => this.displayNo(q)).filter(Boolean).join('   •   ');
+  }
+
   legacyNo(q: any) {
     if (!q) return '';
     const primary = String(this.displayNo(q) || '');
@@ -564,6 +671,21 @@ export class DisplayDeviceComponent implements OnInit {
 
   get isMulti2Mode() {
     return this.device?.device_type === 'multi2';
+  }
+
+  get isRoomGridMode() {
+    return this.device?.device_type === 'room-grid';
+  }
+
+  get gridLocationName() {
+    return this.roomsData[0]?.location_name || this.device?.device_name || 'จุดบริการ';
+  }
+
+  get gridDateText() {
+    const days = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const now = new Date();
+    return `วัน${days[now.getDay()]}ที่ ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear() + 543}`;
   }
 
   // Up to 4 fixed slots. With 4 or fewer assigned rooms, each keeps its own slot (in room-number
