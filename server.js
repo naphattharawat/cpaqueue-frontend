@@ -2,10 +2,12 @@ var express = require('express')
 var path = require('path');
 var app = express()
 require('dotenv').config();
-app.use(express.static(path.join(__dirname, 'dist', 'cpaqueue', 'browser')));
+var browserDist = path.join(__dirname, 'dist', 'cpaqueue', 'browser');
+app.use('/queue', express.static(browserDist));
+app.use(express.static(browserDist));
 
 app.get('/{*splat}', function (req, res) {
-  res.sendFile(path.join(__dirname, 'dist', 'cpaqueue', 'browser', 'index.html'));
+  res.sendFile(path.join(browserDist, 'index.html'));
 });
 
 // catch 404 and forward to error handler

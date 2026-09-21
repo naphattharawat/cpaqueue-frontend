@@ -191,7 +191,6 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
                 <span *ngFor="let q of roomQueues(r)" [class.called]="isLastCalledQueue(r, q)" [class.active]="announcingRoomId === stringId(r.room_id) && displayNo(q) === roomDisplayNo(r)">
                   <b>{{displayNo(q)}}</b>
                   <small class="legacy-queue-no" *ngIf="showLegacyQueue() && legacyNo(q)">({{legacyNo(q)}})</small>
-                  <small>{{timeText(q.call_datetime)}}</small>
                 </span>
                 <span class="empty" *ngIf="!roomQueues(r).length">---</span>
               </div>
@@ -306,8 +305,9 @@ export class DisplayDeviceComponent implements OnInit {
   displaySettings: any = {};
   forceAnnounceRooms = new Set<string>();
   suppressAnnounceRooms = new Set<string>();
-  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string }> = [];
+  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string; attempts?: number }> = [];
   audioQueueRunning = false;
+  activeAudioSlotId = '';
   recentlyQueuedAudio = new Set<string>();
   playbackAbort?: AbortController;
   currentAudio?: HTMLAudioElement;
@@ -421,7 +421,11 @@ export class DisplayDeviceComponent implements OnInit {
           }
           this.roomsData = this.roomsData.map(room => String(room.room_id) === eventRoomId ? { ...room, active: null } : room);
           this.calledList = this.calledList.filter(item => String(item.room_id) !== eventRoomId);
-          if (slotId) this.pendingRoomListItems.delete(slotId);
+          if (slotId) {
+            this.pendingRoomListItems.delete(slotId);
+            this.displayedQueuesByRoom.set(eventRoomId, (this.displayedQueuesByRoom.get(eventRoomId) || [])
+              .filter(item => this.roomListItemKey(item) !== slotId));
+          }
         } else if (e.payload?.action === 'call' && eventRoomId && eventQueueNo) {
           this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId, slotId);
         } else if (e.payload?.action === 'call' && eventRoomId) {
@@ -433,6 +437,9 @@ export class DisplayDeviceComponent implements OnInit {
     setInterval(() => this.tick(), 1000);
     this.tick();
     setInterval(() => this.loadMedia(), 30000);
+    setInterval(() => {
+      if (this.device?.room_ids?.length && !this.demoMode) this.loadBoard();
+    }, 30000);
   }
 
   loadBoard() {
@@ -490,11 +497,29 @@ export class DisplayDeviceComponent implements OnInit {
           if (!this.initialLoadDone) {
             this.displayedQueuesByRoom.set(key, freshQueues.slice(0, limit));
           } else {
-            const shownKeys = new Set((this.displayedQueuesByRoom.get(key) || []).map(q => this.roomListItemKey(q)));
+            const freshByKey = new Map(freshQueues.map((item: any) => [this.roomListItemKey(item), item]));
+            const current = (this.displayedQueuesByRoom.get(key) || [])
+              .filter(item => freshByKey.has(this.roomListItemKey(item)))
+              .map(item => freshByKey.get(this.roomListItemKey(item)) || item);
+            this.displayedQueuesByRoom.set(key, current);
+            const shownKeys = new Set(current.map(q => this.roomListItemKey(q)));
             for (const item of freshQueues) {
               const itemKey = this.roomListItemKey(item);
-              if (!itemKey || shownKeys.has(itemKey) || this.pendingRoomListItems.has(itemKey)) continue;
-              if (this.voiceEnabled) {
+              let isCurrentCall = this.activeAudioSlotId === itemKey
+                || (this.lastCalledRoomId === key && this.lastCalledQueueNo === this.displayNo(item));
+              if (!itemKey || this.pendingRoomListItems.has(itemKey)) continue;
+              if (shownKeys.has(itemKey)) {
+                if (this.activeAudioSlotId === itemKey) {
+                  this.displayedQueuesByRoom.set(key, [item, ...(this.displayedQueuesByRoom.get(key) || [])
+                    .filter(shown => this.roomListItemKey(shown) !== itemKey)].slice(0, limit));
+                }
+                continue;
+              }
+              if (this.voiceEnabled && !isCurrentCall && !this.hasQueuedSlot(itemKey)) {
+                this.enqueueQueueAudio(this.displayNo(item), room.room_number || room.room_id, key, itemKey);
+                isCurrentCall = this.activeAudioSlotId === itemKey;
+              }
+              if (this.voiceEnabled && !isCurrentCall) {
                 this.pendingRoomListItems.set(itemKey, { roomId: key, item });
               } else {
                 this.displayedQueuesByRoom.set(key, [item, ...(this.displayedQueuesByRoom.get(key) || [])].slice(0, limit));
@@ -827,6 +852,11 @@ export class DisplayDeviceComponent implements OnInit {
     this.processAudioQueue();
   }
 
+  hasQueuedSlot(slotId: string) {
+    return !!slotId && (this.activeAudioSlotId === slotId
+      || this.audioQueue.some(item => String(item.slotId || '') === slotId));
+  }
+
   eventDisplayNo(payload: any) {
     if (!payload) return '';
     return this.queueType === 'oqueue' ? payload.oqueue || payload.queueNo || '' : payload.queueNo || payload.oqueue || '';
@@ -842,9 +872,14 @@ export class DisplayDeviceComponent implements OnInit {
         for (let i = 0; i < this.callRepeatCount; i += 1) {
           const played = await this.speakQueue(item.queueNo, item.roomNumber, item.roomId, item.slotId);
           if (!played) {
-            this.audioQueue.unshift(item);
-            this.audioQueueRunning = false;
-            return;
+            if (!this.audioUnlocked) {
+              this.audioQueue.unshift(item);
+              this.audioQueueRunning = false;
+              return;
+            }
+            item.attempts = (item.attempts || 0) + 1;
+            if (item.attempts < 3) this.audioQueue.push(item);
+            break;
           }
           if (i < this.callRepeatCount - 1) await new Promise(resolve => setTimeout(resolve, 700));
         }
@@ -875,6 +910,7 @@ export class DisplayDeviceComponent implements OnInit {
 
   async speakQueue(queueNo: string, roomNumber: string, roomId: string, slotId?: string) {
     if (!this.voiceEnabled) return true;
+    this.activeAudioSlotId = String(slotId || '');
     this.displayedQueueByRoom.set(String(roomId), queueNo);
     if (slotId) this.revealRoomListItem(slotId);
     this.announcingRoomId = roomId;
@@ -892,6 +928,7 @@ export class DisplayDeviceComponent implements OnInit {
       if (this.isAutoplayBlocked(err)) this.audioUnlocked = false;
       return false;
     } finally {
+      if (this.activeAudioSlotId === String(slotId || '')) this.activeAudioSlotId = '';
       this.duckYoutubeAudio(false);
       if (this.announcingRoomId === roomId) this.announcingRoomId = '';
       this.cdr.detectChanges();
