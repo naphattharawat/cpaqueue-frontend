@@ -44,7 +44,11 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
             </div>
           </div>
 
-          <label *ngIf="deviceType === 'room-list'">จำนวนคิวต่อห้อง
+          <label class="inline-check" *ngIf="deviceType === 'room-grid'">
+            <input type="checkbox" [(ngModel)]="settings.show_multiple_queues" (ngModelChange)="updatePreviewUrl()">
+            แสดงคิวหลายรายการต่อห้องตรวจ
+          </label>
+          <label *ngIf="deviceType === 'room-list' || (deviceType === 'room-grid' && settings.show_multiple_queues)">จำนวนคิวต่อห้อง
             <input type="number" min="1" max="12" step="1" [(ngModel)]="queueLimit" (ngModelChange)="updatePreviewUrl()">
           </label>
 
@@ -74,32 +78,8 @@ import { appAbsoluteUrl, appRouteUrl } from './app-url.util';
               ทดลองตั้งค่าสีเอง (ไม่กระทบสีจริงของจุดบริการ)
             </label>
             <div class="playground-color-grid" *ngIf="useCustomColors">
-              <label class="color-field">กำลังเรียก - ตัวหนังสือ
-                <input type="color" [(ngModel)]="colors.active_text" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">กำลังเรียก - ขอบ
-                <input type="color" [(ngModel)]="colors.active_border" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">กำลังเรียก - กระพริบสี 1
-                <input type="color" [(ngModel)]="colors.active_pulse1" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">กำลังเรียก - กระพริบสี 2
-                <input type="color" [(ngModel)]="colors.active_pulse2" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">เพิ่งเรียกไป - ตัวหนังสือ
-                <input type="color" [(ngModel)]="colors.previous_text" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">เพิ่งเรียกไป - ขอบ
-                <input type="color" [(ngModel)]="colors.previous_border" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">รอ/เรียกแล้ว - ตัวหนังสือ
-                <input type="color" [(ngModel)]="colors.called_text" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">รอ/เรียกแล้ว - ขอบ
-                <input type="color" [(ngModel)]="colors.called_border" (ngModelChange)="updatePreviewUrl()">
-              </label>
-              <label class="color-field">ความหนาขอบตัวหนังสือ (px)
-                <input type="number" min="0" max="4" step="0.5" [(ngModel)]="colors.text_stroke_width" (ngModelChange)="updatePreviewUrl()">
+              <label class="color-field">สีธีม
+                <input type="color" [(ngModel)]="colors.theme" (ngModelChange)="updatePreviewUrl()">
               </label>
               <label class="color-field">น้ำหนักตัวอักษร
                 <select [(ngModel)]="colors.queue_font_weight" (ngModelChange)="updatePreviewUrl()">
@@ -163,9 +143,10 @@ export class DisplayPlaygroundComponent implements OnInit {
   rooms: any[] = [];
   selectedRoomIds: string[] = [];
   queueLimit = 6;
-  settings = { show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false };
+  settings = { show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false };
   useCustomColors = false;
   colors: any = {
+    theme: '#4899b2',
     active_text: '#7c2d12', active_border: '#f59e0b', active_pulse1: '#fef3c7', active_pulse2: '#fde68a',
     previous_text: '#7c2d12', previous_border: '#f59e0b', called_text: '#64748b', called_border: '#cbd5e1',
     text_stroke_width: 1, queue_font_weight: '900',
@@ -296,6 +277,7 @@ export class DisplayPlaygroundComponent implements OnInit {
       hide_media: this.settings.hide_media ? '1' : '0',
       show_called_list: this.settings.show_called_list ? '1' : '0',
       show_called_history: this.settings.show_called_history ? '1' : '0',
+      show_multiple_queues: this.settings.show_multiple_queues ? '1' : '0',
     });
     if (this.useCustomColors) params.set('queue_colors_override', JSON.stringify(this.colors));
     this.previewUrl = this.sanitizer.bypassSecurityTrustResourceUrl(appAbsoluteUrl(`/display-device?${params.toString()}`));

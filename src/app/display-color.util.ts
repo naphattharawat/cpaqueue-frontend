@@ -1,4 +1,5 @@
 const DEFAULT_QUEUE_COLORS = {
+  theme: '#4899b2',
   active_text: '#7c2d12',
   active_border: '#f59e0b',
   active_text_stroke: '',
@@ -64,8 +65,24 @@ export function displayBackgroundVariables(displaySettings: any): Record<string,
 
 // Combined CSS variables for a display screen's root element (font + optional page background).
 export function displayPageVariables(displaySettings: any): Record<string, string> {
+  const theme = normalizeTheme(displaySettings?.queue_colors?.theme);
   return {
     ...displayFontVariables(displaySettings?.display_font_family),
     ...displayBackgroundVariables(displaySettings),
+    '--theme-color': theme,
+    '--theme-color-20': hexToRgba(theme, 0.2),
   };
+}
+
+function normalizeTheme(value: any) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : '#4899b2';
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const value = hex.slice(1);
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }

@@ -250,14 +250,11 @@ export class DisplayComponent implements OnInit {
     while (this.audioQueue.length) {
       const item = this.audioQueue.shift();
       if (item) {
-        for (let i = 0; i < this.callRepeatCount; i += 1) {
-          const played = await this.speakQueue(item.queueNo, item.roomNumber);
-          if (!played) {
-            this.audioQueue.unshift(item);
-            this.audioQueueRunning = false;
-            return;
-          }
-          if (i < this.callRepeatCount - 1) await new Promise(resolve => setTimeout(resolve, 700));
+        const played = await this.speakQueue(item.queueNo, item.roomNumber);
+        if (!played) {
+          this.audioQueue.unshift(item);
+          this.audioQueueRunning = false;
+          return;
         }
       }
       await new Promise(resolve => setTimeout(resolve, 350));

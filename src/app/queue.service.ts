@@ -45,6 +45,10 @@ export class QueueService {
   locationConfigs() { return this.http.get<any>(this.api('/location-configs')); }
   voiceTypes() { return this.http.get<any>(this.api('/location-configs/voice-types')); }
   updateLocationConfig(locationId: string, body: any) { return this.http.put<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}`), body); }
+  googleAudioStatus(locationId: string) { return this.http.get<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio`)); }
+  generateGoogleAudio(locationId: string, roomLabel: string) {
+    return this.http.post<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio/generate`), { room_label: roomLabel });
+  }
   queueColorDefaults() { return this.http.get<any>(this.api('/queue-color-defaults')); }
   updateQueueColorDefaults(body: any) { return this.http.put<any>(this.api('/queue-color-defaults'), body); }
   audioFiles(destinationOnly = false) {
@@ -58,8 +62,13 @@ export class QueueService {
   displayDevice(token: string) { return this.http.get<any>(this.api('/display-devices/display'), { params: { token } }); }
   previewDisplayDevice(deviceId: string) { return this.http.get<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/preview`)); }
   previewDisplayDeviceData(deviceId: string) { return this.http.get<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/preview-data`)); }
-  sandboxDisplayData(deviceType: string, roomIds: string, queueLimit = 6) {
-    return this.http.get<any>(this.api('/display-devices/preview-sandbox'), { params: { device_type: deviceType, room_ids: roomIds, queue_limit: String(queueLimit) } });
+  sandboxDisplayData(deviceType: string, roomIds: string, queueLimit = 6, showMultipleQueues = false) {
+    return this.http.get<any>(this.api('/display-devices/preview-sandbox'), { params: {
+      device_type: deviceType,
+      room_ids: roomIds,
+      queue_limit: String(queueLimit),
+      show_multiple_queues: showMultipleQueues ? '1' : '0',
+    } });
   }
   updateDisplayDevice(deviceId: string, body: any) { return this.http.put<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`), body); }
   rotateDisplayDeviceToken(deviceId: string) { return this.http.post<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/rotate-token`), {}); }
@@ -67,6 +76,7 @@ export class QueueService {
   call(body: any) { return this.http.post<any>(this.api('/call'), body); }
   hold(body: any) { return this.http.post<any>(this.api('/hold'), body); }
   pharmacy(body: any) { return this.http.post<any>(this.api('/pharmacy'), body); }
+  resume(body: any) { return this.http.post<any>(this.api('/resume'), body); }
   cancel(body: any) { return this.http.post<any>(this.api('/cancel'), body); }
 
   connect(topics: string[], options: { deviceToken?: string } = {}) {

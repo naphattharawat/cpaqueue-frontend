@@ -22,9 +22,17 @@ import { displayFontFamily } from './display-color.util';
       <div class="settings-detail" *ngIf="colors">
         <div class="settings-section queue-color-settings">
           <div class="section-head">
-            <h2><i class="fa-solid fa-palette"></i> สีเริ่มต้นเมื่อกด "คืนค่าเริ่มต้น"</h2>
+            <h2><i class="fa-solid fa-palette"></i> ธีมสีเริ่มต้นของระบบ</h2>
           </div>
-          <small>ค่าที่ตั้งไว้ในหน้านี้คือค่าที่ทุกจุดบริการจะได้เมื่อกดปุ่ม "คืนค่าเริ่มต้น" ในหน้าตั้งค่าจุดบริการ — ตอนนี้ตั้งไว้เป็นสีเดิมที่ระบบใช้อยู่ก่อนหน้านี้ทั้งหมด ปรับได้ตามต้องการ</small>
+          <small>สีนี้จะเป็นค่าเริ่มต้นเมื่อจุดบริการกด "คืนค่าเริ่มต้น" ระบบจะคำนวณระดับความเข้มสำหรับแต่ละส่วนของหน้าจอให้อัตโนมัติ</small>
+
+          <label class="theme-color-field">สีธีม
+            <span class="theme-color-control">
+              <input type="color" [(ngModel)]="colors.queue_colors.theme" title="เลือกสีธีม">
+              <b>{{colors.queue_colors.theme}}</b>
+              <span class="theme-color-sample" [style.background]="colors.queue_colors.theme"></span>
+            </span>
+          </label>
 
           <label>ฟอนต์หน้าจอแสดงผล
             <select [(ngModel)]="colors.display_font_family">
@@ -156,6 +164,7 @@ export class DefaultColorsComponent implements OnInit {
       queue_font_weight: ['400', '700', '900'].includes(String(value?.queue_font_weight)) ? String(value.queue_font_weight) : '900',
       display_font_family: value?.display_font_family || 'kanit',
       queue_colors: {
+        theme: '#4899b2',
         active_text: '#7c2d12',
         active_border: '#f59e0b',
         active_text_stroke: '',

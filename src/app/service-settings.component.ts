@@ -60,7 +60,7 @@ import { displayFontFamily } from './display-color.util';
               </select>
             </label>
 
-            <label>จำนวนครั้งที่เรียกซ้ำ
+            <label>จำนวนครั้งที่อ่านหมายเลข
               <select [(ngModel)]="selected.call_repeat_count">
                 <option [ngValue]="1">1 ครั้ง</option>
                 <option [ngValue]="2">2 ครั้ง</option>
@@ -68,6 +68,7 @@ import { displayFontFamily } from './display-color.util';
                 <option [ngValue]="4">4 ครั้ง</option>
                 <option [ngValue]="5">5 ครั้ง</option>
               </select>
+              <small>เช่น 2 ครั้ง: เชิญหมายเลข 123 123 ที่ห้องตรวจ 1 ค่ะ</small>
             </label>
 
             <label>ห้องสำหรับทดสอบเสียง
@@ -81,6 +82,23 @@ import { displayFontFamily } from './display-color.util';
               <input [(ngModel)]="selected.google_room_label" placeholder="เช่น ห้องตรวจ, ช่องบริการ, จุดซักประวัติ">
             </label>
 
+            <ng-container *ngIf="selected.tts_provider === 'google'">
+              <label>รูปแบบการเล่นเสียง Google
+                <select [(ngModel)]="selected.google_playback_mode">
+                  <option value="online">ออนไลน์ — สร้างทั้งประโยคทุกครั้ง</option>
+                  <option value="generated">ไฟล์ในเครื่อง — ประกอบเสียงที่สร้างไว้</option>
+                </select>
+              </label>
+              <div class="google-audio-generator">
+                <button class="btn muted" type="button" [disabled]="googleAudioGenerating" (click)="generateGoogleAudio()">
+                  <i class="fa-solid fa-cloud-arrow-down"></i>
+                  {{googleAudioGenerating ? 'กำลังสร้างไฟล์เสียง...' : (selected.google_audio_ready ? 'สร้างไฟล์เสียง Google ใหม่' : 'สร้างไฟล์เสียง Google') }}
+                </button>
+                <small *ngIf="selected.google_audio_ready">พร้อมใช้งาน {{selected.google_audio_file_count || 0}} ไฟล์ · สร้างล่าสุด {{formatGeneratedAt(selected.google_generated_at)}}</small>
+                <small class="field-error" *ngIf="selected.google_playback_mode === 'generated' && !selected.google_audio_ready">ยังไม่มีไฟล์เสียง กรุณากดสร้างก่อนใช้งาน</small>
+              </div>
+            </ng-container>
+
             <label *ngIf="selected.tts_provider === 'recorded'">ไฟล์เสียงปลายทาง
               <select [(ngModel)]="selected.recorded_room_type">
                 <option value="" disabled>-- เลือกไฟล์เสียงปลายทาง --</option>
@@ -90,7 +108,7 @@ import { displayFontFamily } from './display-color.util';
               <small class="field-error" *ngIf="!audioFilesLoading && audioFilesError">{{audioFilesError}}</small>
             </label>
 
-            <label *ngIf="selected.tts_provider === 'recorded'">รูปแบบการอ่านหมายเลข
+            <label>รูปแบบการอ่านหมายเลข
               <select [(ngModel)]="selected.recorded_number_mode">
                 <option value="digits">อ่านทีละหลัก เช่น 100 เป็น หนึ่ง ศูนย์ ศูนย์</option>
                 <option value="number">อ่านเป็นตัวเลข เช่น 100 เป็น หนึ่งร้อย</option>
@@ -100,13 +118,13 @@ import { displayFontFamily } from './display-color.util';
             <button class="btn test-voice-button" (click)="testVoice()">
               <i class="fa-solid fa-volume-high"></i> ทดสอบเสียง
             </button>
-            <small *ngIf="selected.tts_provider === 'google'">ทดสอบด้วยประโยค: เชิญหมายเลข 123 {{selected.google_room_label || 'ห้องตรวจ'}} {{previewRoomNumber()}}</small>
+            <small *ngIf="selected.tts_provider === 'google'">ทดสอบด้วยหมายเลข 123 แบบ{{selected.recorded_number_mode === 'number' ? 'อ่านเป็นตัวเลข' : 'อ่านทีละหลัก'}} · {{selected.google_room_label || 'ห้องตรวจ'}} {{previewRoomNumber()}}</small>
             <small *ngIf="selected.tts_provider === 'recorded'">ทดสอบด้วยไฟล์เสียงที่เลือกและหมายเลขตัวอย่าง 123</small>
           </div>
 
           <div class="settings-section queue-color-settings">
             <div class="section-head">
-              <h2><i class="fa-solid fa-palette"></i> สีหมายเลขรับบริการ</h2>
+              <h2><i class="fa-solid fa-palette"></i> ธีมสีหน้าจอแสดงผล</h2>
               <div class="device-actions">
                 <a class="btn muted" [href]="appRouteUrl('/default-colors')"><i class="fa-solid fa-sliders"></i> ตั้งค่าสีเริ่มต้นของระบบ</a>
                 <button class="btn muted" type="button" (click)="resetQueueColors()">คืนค่าเริ่มต้น</button>
@@ -143,6 +161,14 @@ import { displayFontFamily } from './display-color.util';
             </div>
 
             <div [class.locked]="colorTab !== 'default' && !hasOverride">
+              <label class="theme-color-field">สีธีม
+                <span class="theme-color-control">
+                  <input type="color" [(ngModel)]="activeColors.theme" title="เลือกสีธีม">
+                  <b>{{activeColors.theme}}</b>
+                  <span class="theme-color-sample" [style.background]="activeColors.theme"></span>
+                </span>
+                <small>ระบบจะนำสีนี้ไปคำนวณความเข้ม 100% และ 20% ให้อัตโนมัติ</small>
+              </label>
               <label>ฟอนต์หน้าจอแสดงผล
                 <select [ngModel]="activeFontFamily" (ngModelChange)="activeFontFamily = $event">
                   <option value="kanit">Kanit</option>
@@ -257,7 +283,11 @@ import { displayFontFamily } from './display-color.util';
                 <option value="room-list">แสดงคิวต่อห้องหลายรายการ</option>
                 <option value="room-grid">จอ 1-4 ห้อง (การ์ดสี + คิวถัดไป)</option>
               </select>
-              <label *ngIf="draftDevice.device_type === 'room-list'">จำนวนคิวต่อห้อง
+              <label class="inline-check" *ngIf="draftDevice.device_type === 'room-grid'">
+                <input type="checkbox" [(ngModel)]="draftDevice.settings.show_multiple_queues">
+                แสดงคิวหลายรายการต่อห้องตรวจ
+              </label>
+              <label *ngIf="draftDevice.device_type === 'room-list' || (draftDevice.device_type === 'room-grid' && draftDevice.settings.show_multiple_queues)">จำนวนคิวต่อห้อง
                 <input type="number" min="1" max="12" step="1" [(ngModel)]="draftDevice.settings.queue_limit" placeholder="จำนวนคิว">
               </label>
               <label class="inline-check">
@@ -301,7 +331,11 @@ import { displayFontFamily } from './display-color.util';
                 </select>
                 <label class="inline-check"><input type="checkbox" [(ngModel)]="d.active"> active</label>
               </div>
-              <label *ngIf="d.device_type === 'room-list'">จำนวนคิวต่อห้อง
+              <label class="inline-check" *ngIf="d.device_type === 'room-grid'">
+                <input type="checkbox" [(ngModel)]="d.settings.show_multiple_queues">
+                แสดงคิวหลายรายการต่อห้องตรวจ
+              </label>
+              <label *ngIf="d.device_type === 'room-list' || (d.device_type === 'room-grid' && d.settings.show_multiple_queues)">จำนวนคิวต่อห้อง
                 <input type="number" min="1" max="12" step="1" [(ngModel)]="d.settings.queue_limit" placeholder="จำนวนคิว">
               </label>
               <label class="inline-check">
@@ -362,6 +396,7 @@ export class ServiceSettingsComponent implements OnInit {
   testRoomId = '';
   locationSaving = false;
   locationSaveStatus = '';
+  googleAudioGenerating = false;
   private locationSaveTimer?: number;
   toastMessage = '';
   private toastTimer?: number;
@@ -456,10 +491,52 @@ export class ServiceSettingsComponent implements OnInit {
     this.draftDevice = null;
     this.testRoomId = '';
     this.locationSaveStatus = '';
+    this.loadGoogleAudioStatus(location.location_id);
     this.api.rooms(location.location_id).subscribe(r => {
       this.rooms = r.data || [];
       this.testRoomId = this.stringId(this.rooms[0]?.opd_qs_room_id || '');
     });
+  }
+
+  loadGoogleAudioStatus(locationId: string) {
+    this.api.googleAudioStatus(locationId).subscribe({
+      next: r => {
+        if (!this.selected || String(this.selected.location_id) !== String(locationId)) return;
+        Object.assign(this.selected, {
+          google_audio_ready: !!r.data?.ready,
+          google_audio_file_count: Number(r.data?.file_count || 0),
+          google_generated_at: r.data?.generated_at || this.selected.google_generated_at || '',
+        });
+      },
+      error: err => console.warn('Load generated Google audio status failed', err),
+    });
+  }
+
+  generateGoogleAudio() {
+    if (!this.selected || this.googleAudioGenerating) return;
+    if (!window.confirm('ระบบจะเรียก Google เพื่อสร้างชุดไฟล์เสียงใหม่ และแทนที่ไฟล์เดิมของจุดบริการนี้ ยืนยันหรือไม่?')) return;
+    this.googleAudioGenerating = true;
+    this.api.generateGoogleAudio(this.selected.location_id, this.selected.google_room_label || 'ห้องตรวจ').subscribe({
+      next: r => {
+        this.googleAudioGenerating = false;
+        this.selected.google_playback_mode = 'generated';
+        this.selected.google_audio_ready = !!r.data?.ready;
+        this.selected.google_audio_file_count = Number(r.data?.file_count || 0);
+        this.selected.google_generated_at = r.data?.generated_at || '';
+        this.showToast('สร้างไฟล์เสียง Google สำเร็จ');
+      },
+      error: err => {
+        console.warn('Generate Google audio failed', err);
+        this.googleAudioGenerating = false;
+        this.showToast(err?.error?.message || 'สร้างไฟล์เสียง Google ไม่สำเร็จ');
+      },
+    });
+  }
+
+  formatGeneratedAt(value: string) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString('th-TH');
   }
 
   saveLocation() {
@@ -494,7 +571,7 @@ export class ServiceSettingsComponent implements OnInit {
       room_ids: [],
       allowed_ips_text: '',
       active: true,
-      settings: { queue_limit: 6, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false },
+      settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false },
     };
   }
 
@@ -562,8 +639,10 @@ export class ServiceSettingsComponent implements OnInit {
         provider: this.selected.tts_provider,
         voice_rate: String(this.selected.voice_rate || 1),
         number_mode: this.selected.recorded_number_mode || 'digits',
+        repeat_count: String(this.selected.call_repeat_count || 1),
       });
       if (this.selected.tts_provider === 'google') params.set('room_label', this.selected.google_room_label || 'ห้องตรวจ');
+      if (this.selected.tts_provider === 'google') params.set('playback_mode', this.selected.google_playback_mode || 'online');
       if (this.selected.tts_provider === 'recorded') params.set('room_type', this.selected.recorded_room_type || 'doctor_room');
       const response = await fetch(this.api.ttsUrl(`/call?${params.toString()}`));
       const contentType = response.headers.get('content-type') || '';
@@ -622,6 +701,8 @@ export class ServiceSettingsComponent implements OnInit {
     return {
       ...item,
       google_room_label: item.google_room_label || item.settings?.google_room_label || 'ห้องตรวจ',
+      google_playback_mode: item.google_playback_mode === 'generated' ? 'generated' : 'online',
+      google_generated_at: item.google_generated_at || item.settings?.google_generated_at || '',
       recorded_room_label: item.recorded_room_label || item.settings?.recorded_room_label || '',
       recorded_room_type: item.recorded_room_type || 'doctor_room',
       recorded_number_mode: item.recorded_number_mode === 'number' ? 'number' : 'digits',
@@ -637,7 +718,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   normalizeDevice(device: any) {
-    return { ...device, settings: { queue_limit: 6, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
+    return { ...device, settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
   }
 
   // An entry only exists for a type once an admin explicitly creates it (createOverrideForActiveTab).
@@ -773,6 +854,7 @@ export class ServiceSettingsComponent implements OnInit {
 
   defaultQueueColors() {
     return {
+      theme: '#4899b2',
       active_text: '#7c2d12',
       active_border: '#f59e0b',
       active_text_stroke: '',
