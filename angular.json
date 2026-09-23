@@ -24,6 +24,11 @@
                 "glob": "**/*",
                 "input": "src/assets/fonts",
                 "output": "assets/fonts"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/assets/images",
+                "output": "assets/images"
               }
             ],
             "styles": [
