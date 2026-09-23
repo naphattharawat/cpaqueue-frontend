@@ -88,6 +88,7 @@ import { appRouteUrl } from './app-url.util';
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'hold'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
+            <button class="wide hold" (click)="resumeQueue(selected)">กลับไปรอเรียก</button>
           </ng-container>
           <ng-container *ngIf="selectedTab(selected) === 'pharmacy'">
             <button class="wide call" (click)="callQueue(selected)">เรียกคิว <span>Alt+1</span></button>
@@ -102,7 +103,7 @@ import { appRouteUrl } from './app-url.util';
         <div class="tabs">
           <button [class.active]="tab==='waiting'" (click)="tab='waiting'">รอเรียก {{counts.waiting}}</button>
           <button [class.active]="tab==='called'" (click)="tab='called'">เรียกแล้ว {{counts.called}}</button>
-          <button [class.active]="tab==='hold'" (click)="tab='hold'">ไม่พบ / รอผล Lab {{counts.hold}}</button>
+          <button [class.active]="tab==='hold'" (click)="tab='hold'">ไม่พบ {{counts.hold}}</button>
           <button [class.active]="tab==='pharmacy'" (click)="tab='pharmacy'">พักคิว {{counts.pharmacy}}</button>
         </div>
 
@@ -125,6 +126,7 @@ import { appRouteUrl } from './app-url.util';
             </ng-container>
             <ng-container *ngIf="tab === 'hold'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
+              <button class="btn-hold" (click)="resumeQueue(q); $event.stopPropagation()">กลับไปรอเรียก</button>
             </ng-container>
             <ng-container *ngIf="tab === 'pharmacy'">
               <button class="btn-call" (click)="callQueue(q); $event.stopPropagation()">เรียกคิว</button>
@@ -148,6 +150,7 @@ import { appRouteUrl } from './app-url.util';
             <button type="button" class="btn-warning" *ngIf="selectedTab(q) === 'waiting' || selectedTab(q) === 'called'" (click)="selected=q; holdQueue(q)">{{selectedTab(q) === 'called' ? 'เรียกไม่พบ' : 'ไม่พบ'}}</button>
             <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'waiting'" (click)="selected=q; pharmacyQueue(q)">พักคิว</button>
             <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'called'" (click)="selected=q; cancelQueue(q)">ยกเลิกเรียก</button>
+            <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'hold'" (click)="selected=q; resumeQueue(q)">กลับไปรอเรียก</button>
             <button type="button" class="btn-hold" *ngIf="selectedTab(q) === 'pharmacy'" (click)="selected=q; resumeQueue(q)">ยกเลิกพักคิว</button>
           </div>
           <div class="pooled-doctor-actions" *ngIf="pooledCallEnabled">
@@ -425,7 +428,7 @@ export class CallerComponent implements OnInit {
       },
       error: err => {
         console.warn('Resume queue failed', err);
-        window.alert(err?.error?.message || 'ยกเลิกพักคิวไม่สำเร็จ');
+        window.alert(err?.error?.message || 'นำคิวกลับไปรอเรียกไม่สำเร็จ');
       },
     });
   }

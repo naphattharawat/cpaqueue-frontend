@@ -59,7 +59,13 @@ import { appRouteUrl } from './app-url.util';
             <label class="inline-check"><input type="checkbox" [(ngModel)]="item.device.settings.remote_settings.enabled"> เปิดใช้การควบคุมระยะไกล</label>
             <label class="inline-check"><input type="checkbox" [(ngModel)]="item.device.settings.remote_settings.fullscreen"> เปิดเต็มจอ</label>
             <label class="inline-check"><input type="checkbox" [(ngModel)]="item.device.settings.remote_settings.start_on_login"> เปิดพร้อม Windows</label>
-            <label>ลำดับจอ<input type="number" min="0" max="16" step="1" [(ngModel)]="item.device.settings.remote_settings.screen_index"><small>0 = ให้เครื่องใช้ค่าท้องถิ่น</small></label>
+            <label>หมายเลขจอ
+              <select [(ngModel)]="item.device.settings.remote_settings.screen_index">
+                <option [ngValue]="0">ใช้ค่าจาก Electron</option>
+                <option *ngFor="let screen of screenOptions" [ngValue]="screen">จอ {{screen}}</option>
+              </select>
+              <small>ถ้าเลือกหมายเลขจอ ค่าจากส่วนกลางจะแทนค่าที่ตั้งไว้ใน Electron</small>
+            </label>
             <label>ตัวติดตั้งที่ต้องการใช้
               <select [ngModel]="selectedInstallerUrl(item.device)" (ngModelChange)="chooseInstaller(item.device, $event)">
                 <option value="">-- ไม่อัปเดต / ไม่เลือกไฟล์ --</option>
@@ -99,6 +105,7 @@ export class RemoteSettingsComponent implements OnInit {
   locations: any[] = [];
   devices: Array<{ locationName: string; device: any }> = [];
   installers: any[] = [];
+  screenOptions = [1, 2, 3];
   search = '';
   uploadVersion = '';
   uploadFile: File | null = null;
