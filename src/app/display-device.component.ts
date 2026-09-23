@@ -314,10 +314,11 @@ export class DisplayDeviceComponent implements OnInit {
   displaySettings: any = {};
   forceAnnounceRooms = new Set<string>();
   suppressAnnounceRooms = new Set<string>();
-  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string; attempts?: number }> = [];
+  audioQueue: Array<{ queueNo: string; roomNumber: string; roomId: string; slotId?: string; callKey?: string; attempts?: number }> = [];
   audioQueueRunning = false;
   activeAudioSlotId = '';
   recentlyQueuedAudio = new Set<string>();
+  announcedCallKeys = new Set<string>();
   playbackAbort?: AbortController;
   currentAudio?: HTMLAudioElement;
   callRepeatCount = 1;
@@ -447,10 +448,14 @@ export class DisplayDeviceComponent implements OnInit {
                 queue_slot_number: e.payload?.queueNo || eventQueueNo,
                 oqueue: e.payload?.oqueue || eventQueueNo,
                 call_datetime: new Date().toISOString(),
+                call_id: e.payload?.callId || '',
               },
             });
           }
-          this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId, slotId);
+          const eventCallKey = this.callAnnouncementKey(eventRoomId, slotId, e.payload?.callId, e.payload?.callDatetime);
+          const activeCallKey = this.callAnnouncementKey(eventRoomId, slotId, e.payload?.activeCallId, e.payload?.callDatetime);
+          this.enqueueQueueAudio(eventQueueNo, e.payload?.roomNumber || eventRoomId, eventRoomId, slotId, eventCallKey);
+          if (activeCallKey) this.rememberAnnouncedCall(activeCallKey);
         } else if (e.payload?.action === 'call' && eventRoomId) {
           this.forceAnnounceRooms.add(eventRoomId);
         }
@@ -514,7 +519,7 @@ export class DisplayDeviceComponent implements OnInit {
           this.displayedQueueByRoom.set(key, activeNo || '');
         } else if (this.initialLoadDone && activeNo && !this.hasQueuedRoom(key) && previous !== activeSignature) this.displayedQueueByRoom.set(key, previous ? (this.displayedQueueByRoom.get(key) || '') : activeNo);
         if (!suppressRoom && this.initialLoadDone && activeNo && (previous !== activeSignature || this.forceAnnounceRooms.has(key))) {
-          this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key, String(room.active?.opd_qs_slot_id || ''));
+          this.enqueueQueueAudio(activeNo, room.room_number || room.room_id, key, String(room.active?.opd_qs_slot_id || ''), this.callAnnouncementKey(key, room.active?.opd_qs_slot_id, room.active?.call_id, room.active?.call_datetime));
           this.forceAnnounceRooms.delete(key);
         }
         this.lastActiveByRoom.set(key, activeSignature);
@@ -545,7 +550,7 @@ export class DisplayDeviceComponent implements OnInit {
                 continue;
               }
               if (this.voiceEnabled && !isCurrentCall && !this.hasQueuedSlot(itemKey)) {
-                this.enqueueQueueAudio(this.displayNo(item), room.room_number || room.room_id, key, itemKey);
+                this.enqueueQueueAudio(this.displayNo(item), room.room_number || room.room_id, key, itemKey, this.callAnnouncementKey(key, itemKey, item.call_id, item.call_datetime));
                 isCurrentCall = this.activeAudioSlotId === itemKey;
               }
               if (this.voiceEnabled && !isCurrentCall) {
@@ -906,14 +911,27 @@ export class DisplayDeviceComponent implements OnInit {
     return `${this.displayNo(q)}:${q.call_id || q.call_datetime || ''}`;
   }
 
-  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string, slotId?: string) {
+  callAnnouncementKey(roomId: unknown, slotId: unknown, callId: unknown, callDatetime: unknown) {
+    if (callId !== null && callId !== undefined && String(callId)) return `${roomId}:call:${callId}`;
+    if (callDatetime) return `${roomId}:slot:${slotId || ''}:at:${new Date(String(callDatetime)).getTime() || String(callDatetime)}`;
+    return '';
+  }
+
+  rememberAnnouncedCall(callKey: string) {
+    if (!callKey) return;
+    this.announcedCallKeys.add(callKey);
+  }
+
+  enqueueQueueAudio(queueNo: string, roomNumber: string, roomId: string, slotId?: string, callKey = '') {
     if (!this.voiceEnabled) return;
+    if (callKey && this.announcedCallKeys.has(callKey)) return;
     const signature = `${queueNo}:${roomNumber}:${roomId}:${slotId || ''}`;
     if (this.recentlyQueuedAudio.has(signature)) return;
     if (this.audioQueue.some(item => `${item.queueNo}:${item.roomNumber}:${item.roomId}:${item.slotId || ''}` === signature)) return;
+    this.rememberAnnouncedCall(callKey);
     this.recentlyQueuedAudio.add(signature);
     window.setTimeout(() => this.recentlyQueuedAudio.delete(signature), 10000);
-    this.audioQueue.push({ queueNo, roomNumber, roomId, slotId });
+    this.audioQueue.push({ queueNo, roomNumber, roomId, slotId, callKey });
     this.processAudioQueue();
   }
 

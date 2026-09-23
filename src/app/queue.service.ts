@@ -49,6 +49,9 @@ export class QueueService {
   generateGoogleAudio(locationId: string, roomLabel: string) {
     return this.http.post<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio/generate`), { room_label: roomLabel });
   }
+  googleDigitAudioStatus(locationId: string, mode: 'digits' | 'number') { return this.http.get<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio/digits`), { params: { mode } }); }
+  startGoogleDigitAudio(locationId: string, mode: 'digits' | 'number') { return this.http.post<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio/digits/start`), { mode }); }
+  stopGoogleDigitAudio(locationId: string, mode: 'digits' | 'number') { return this.http.post<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/google-audio/digits/stop`), { mode }); }
   queueColorDefaults() { return this.http.get<any>(this.api('/queue-color-defaults')); }
   updateQueueColorDefaults(body: any) { return this.http.put<any>(this.api('/queue-color-defaults'), body); }
   audioFiles(destinationOnly = false) {

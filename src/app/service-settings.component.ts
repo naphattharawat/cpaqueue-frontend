@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { QueueService } from './queue.service';
 import { playAudioSequence } from './audio-playback.util';
@@ -97,6 +97,35 @@ import { displayFontFamily } from './display-color.util';
                 <small *ngIf="selected.google_audio_ready">พร้อมใช้งาน {{selected.google_audio_file_count || 0}} ไฟล์ · สร้างล่าสุด {{formatGeneratedAt(selected.google_generated_at)}}</small>
                 <small class="field-error" *ngIf="selected.google_playback_mode === 'generated' && !selected.google_audio_ready">ยังไม่มีไฟล์เสียง กรุณากดสร้างก่อนใช้งาน</small>
               </div>
+              <div class="digit-prewarm" *ngIf="selected.google_playback_mode === 'generated'">
+                <div class="digit-prewarm-head">
+                  <div>
+                    <strong>เสียง{{selected.recorded_number_mode === 'number' ? 'อ่านเป็นตัวเลข' : 'ตัวเลขทีละหลัก'}} 1-9999</strong>
+                    <small>ไฟล์ส่วนกลาง ใช้ร่วมกันทุกจุดบริการโดยไม่ต้องสร้างซ้ำ</small>
+                  </div>
+                  <span>{{digitPrewarmPercent}}%</span>
+                </div>
+                <div class="digit-progress" role="progressbar" [attr.aria-valuenow]="digitPrewarmPercent" aria-valuemin="0" aria-valuemax="100">
+                  <span [style.width.%]="digitPrewarmPercent"></span>
+                </div>
+                <div class="digit-prewarm-meta">
+                  <span>{{digitPrewarmStatus?.completed || 0 | number}} / {{digitPrewarmStatus?.total || 9999 | number}} ไฟล์</span>
+                  <span *ngIf="digitPrewarmStatus?.running">กำลังสร้างหมายเลข {{digitPrewarmStatus?.current || '-'}}</span>
+                  <span class="field-error" *ngIf="digitPrewarmStatus?.failed">ผิดพลาด {{digitPrewarmStatus.failed | number}} ครั้ง</span>
+                </div>
+                <small class="field-error" *ngIf="digitPrewarmStatus?.last_error">{{digitPrewarmStatus.last_error}}</small>
+                <div class="digit-prewarm-actions">
+                  <button class="btn muted" type="button" [disabled]="digitPrewarmLoading || digitPrewarmStatus?.running || digitPrewarmStatus?.completed >= 9999" (click)="startDigitPrewarm()">
+                    <i class="fa-solid fa-play"></i> {{digitPrewarmStatus?.completed ? 'ทำต่อ' : 'เริ่มสร้างทั้งหมด'}}
+                  </button>
+                  <button class="btn danger" type="button" *ngIf="digitPrewarmStatus?.running" [disabled]="digitPrewarmLoading" (click)="stopDigitPrewarm()">
+                    <i class="fa-solid fa-stop"></i> หยุด
+                  </button>
+                  <button class="btn muted" type="button" [disabled]="digitPrewarmLoading" (click)="loadDigitPrewarmStatus(selected.location_id)">
+                    <i class="fa-solid fa-rotate"></i> ตรวจสอบสถานะ
+                  </button>
+                </div>
+              </div>
             </ng-container>
 
             <label *ngIf="selected.tts_provider === 'recorded'">ไฟล์เสียงปลายทาง
@@ -109,7 +138,7 @@ import { displayFontFamily } from './display-color.util';
             </label>
 
             <label>รูปแบบการอ่านหมายเลข
-              <select [(ngModel)]="selected.recorded_number_mode">
+              <select [(ngModel)]="selected.recorded_number_mode" (ngModelChange)="onNumberModeChange()">
                 <option value="digits">อ่านทีละหลัก เช่น 100 เป็น หนึ่ง ศูนย์ ศูนย์</option>
                 <option value="number">อ่านเป็นตัวเลข เช่น 100 เป็น หนึ่งร้อย</option>
               </select>
@@ -383,7 +412,7 @@ import { displayFontFamily } from './display-color.util';
     </main>
   `
 })
-export class ServiceSettingsComponent implements OnInit {
+export class ServiceSettingsComponent implements OnInit, OnDestroy {
   appRouteUrl = appRouteUrl;
   locations: any[] = [];
   rooms: any[] = [];
@@ -397,6 +426,9 @@ export class ServiceSettingsComponent implements OnInit {
   locationSaving = false;
   locationSaveStatus = '';
   googleAudioGenerating = false;
+  digitPrewarmStatus: any = null;
+  digitPrewarmLoading = false;
+  private digitPrewarmTimer?: number;
   private locationSaveTimer?: number;
   toastMessage = '';
   private toastTimer?: number;
@@ -427,6 +459,10 @@ export class ServiceSettingsComponent implements OnInit {
       },
     });
     this.loadAudioFiles();
+  }
+
+  ngOnDestroy() {
+    window.clearTimeout(this.digitPrewarmTimer);
   }
 
   loadLocations() {
@@ -485,6 +521,7 @@ export class ServiceSettingsComponent implements OnInit {
   }
 
   selectLocation(location: any) {
+    window.clearTimeout(this.digitPrewarmTimer);
     this.selected = location;
     this.colorTab = 'default';
     localStorage.setItem('service_settings_location_id', String(location.location_id));
@@ -492,9 +529,78 @@ export class ServiceSettingsComponent implements OnInit {
     this.testRoomId = '';
     this.locationSaveStatus = '';
     this.loadGoogleAudioStatus(location.location_id);
+    this.loadDigitPrewarmStatus(location.location_id);
     this.api.rooms(location.location_id).subscribe(r => {
       this.rooms = r.data || [];
       this.testRoomId = this.stringId(this.rooms[0]?.opd_qs_room_id || '');
+    });
+  }
+
+  loadDigitPrewarmStatus(locationId: string) {
+    window.clearTimeout(this.digitPrewarmTimer);
+    const mode = this.selectedNumberMode();
+    this.api.googleDigitAudioStatus(locationId, mode).subscribe({
+      next: r => {
+        if (!this.selected || String(this.selected.location_id) !== String(locationId) || this.selectedNumberMode() !== mode) return;
+        this.digitPrewarmStatus = r.data || null;
+        if (this.digitPrewarmStatus?.running) {
+          this.digitPrewarmTimer = window.setTimeout(() => this.loadDigitPrewarmStatus(locationId), 2000);
+        }
+      },
+      error: err => console.warn('Load Google digit audio status failed', err),
+    });
+  }
+
+  onNumberModeChange() {
+    if (this.selected) this.loadDigitPrewarmStatus(String(this.selected.location_id));
+  }
+
+  selectedNumberMode(): 'digits' | 'number' {
+    return this.selected?.recorded_number_mode === 'number' ? 'number' : 'digits';
+  }
+
+  get digitPrewarmPercent() {
+    const completed = Number(this.digitPrewarmStatus?.completed || 0);
+    const total = Number(this.digitPrewarmStatus?.total || 9999);
+    return Math.min(100, Math.max(0, Math.floor(completed * 100 / total)));
+  }
+
+  startDigitPrewarm() {
+    if (!this.selected || this.digitPrewarmLoading || this.digitPrewarmStatus?.running) return;
+    if (!window.confirm('ระบบจะสร้างเสียงหมายเลข 1-9999 ผ่าน Google แบบเบื้องหลัง งานนี้อาจใช้เวลาหลายชั่วโมงและต้องใช้อินเทอร์เน็ต ต้องการเริ่มหรือทำต่อหรือไม่?')) return;
+    const locationId = String(this.selected.location_id);
+    const mode = this.selectedNumberMode();
+    this.digitPrewarmLoading = true;
+    this.api.startGoogleDigitAudio(locationId, mode).subscribe({
+      next: r => {
+        this.digitPrewarmLoading = false;
+        this.digitPrewarmStatus = r.data || null;
+        this.showToast('เริ่มสร้างเสียงตัวเลขแล้ว');
+        this.digitPrewarmTimer = window.setTimeout(() => this.loadDigitPrewarmStatus(locationId), 1000);
+      },
+      error: err => {
+        this.digitPrewarmLoading = false;
+        this.showToast(err?.error?.message || 'เริ่มสร้างเสียงตัวเลขไม่สำเร็จ');
+      },
+    });
+  }
+
+  stopDigitPrewarm() {
+    if (!this.selected || this.digitPrewarmLoading) return;
+    const locationId = String(this.selected.location_id);
+    const mode = this.selectedNumberMode();
+    this.digitPrewarmLoading = true;
+    this.api.stopGoogleDigitAudio(locationId, mode).subscribe({
+      next: r => {
+        this.digitPrewarmLoading = false;
+        this.digitPrewarmStatus = r.data || null;
+        window.clearTimeout(this.digitPrewarmTimer);
+        this.showToast('กำลังหยุดหลังสร้างไฟล์ปัจจุบันเสร็จ');
+      },
+      error: err => {
+        this.digitPrewarmLoading = false;
+        this.showToast(err?.error?.message || 'หยุดงานไม่สำเร็จ');
+      },
     });
   }
 
