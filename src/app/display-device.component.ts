@@ -102,9 +102,12 @@ import { displayPageVariables, queueColorVariables } from './display-color.util'
       <header class="grid-display-header">
         <div class="grid-header-left">
           <div class="grid-heading-content">
-            <div class="grid-hospital-name"><i class="fa-solid fa-hospital" aria-hidden="true"></i><span>โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span></div>
-            <h2>หน้าจอสถานะรับบริการ {{gridLocationName}}</h2>
-            <div class="grid-clock">{{gridDateText}} เวลา {{clock}} น.</div>
+            <div class="grid-hospital-name">
+              <i class="fa-solid fa-hospital" aria-hidden="true"></i>
+              <span>หน้าจอสถานะรับบริการ โรงพยาบาลเจ้าพระยาอภัยภูเบศร</span>
+              <div class="grid-clock">{{gridDateText}} เวลา {{clock}} น.</div>
+            </div>
+            <h2>{{gridLocationName}}</h2>
           </div>
         </div>
         <div class="grid-header-right">

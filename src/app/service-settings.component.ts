@@ -396,7 +396,13 @@ import { displayFontFamily } from './display-color.util';
                 <button class="btn" (click)="saveDevice(d)">บันทึก device</button>
                 <a class="btn preview" [href]="previewDeviceUrl(d.device_id)" target="_blank"><i class="fa-solid fa-eye"></i> ดูตัวอย่าง</a>
                 <button class="btn muted" (click)="rotateToken(d)">Rotate token</button>
+                <button class="btn muted" (click)="generateSetupCode(d)"><i class="fa-solid fa-key"></i> สร้างรหัสติดตั้ง 4 หลัก</button>
                 <button class="btn danger" (click)="deleteDevice(d)">ลบ</button>
+              </div>
+              <div class="token-box" *ngIf="d.setup_code">
+                <b>รหัสติดตั้งชั่วคราว</b>
+                <div class="token-value"><code>{{d.setup_code}}</code><button class="btn muted" type="button" (click)="copyText(d.setup_code, 'คัดลอกรหัสแล้ว')"><i class="fa-solid fa-copy"></i> คัดลอก</button></div>
+                <small>ใช้ได้ถึง {{formatLastCall(d.setup_code_expires_at)}} และใช้ได้ครั้งเดียว</small>
               </div>
               <div class="token-box" *ngIf="d.setup_token; else unavailableToken">
                 <b>Device token</b>
@@ -404,7 +410,7 @@ import { displayFontFamily } from './display-color.util';
                 <div class="token-value"><code>{{displayDeviceUrl(d.setup_token)}}</code><button class="btn muted" type="button" (click)="copyText(displayDeviceUrl(d.setup_token), 'คัดลอก URL แล้ว')"><i class="fa-solid fa-link"></i> คัดลอก URL</button></div>
               </div>
               <ng-template #unavailableToken><small class="token-unavailable">Token เดิมไม่สามารถแสดงย้อนหลังได้ กรุณา Rotate token หนึ่งครั้ง</small></ng-template>
-              <small>last seen: {{d.last_seen_at || '-'}}</small>
+              <small>เรียกคิวล่าสุดวันนี้: {{formatLastCall(d.last_call_at)}} · last seen: {{d.last_seen_at || '-'}}</small>
             </article>
           </div>
         </section>
@@ -677,7 +683,7 @@ export class ServiceSettingsComponent implements OnInit, OnDestroy {
       room_ids: [],
       allowed_ips_text: '',
       active: true,
-      settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false },
+      settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false, remote_settings: this.defaultRemoteSettings() },
     };
   }
 
@@ -717,6 +723,17 @@ export class ServiceSettingsComponent implements OnInit, OnDestroy {
         console.warn('Rotate device token failed', err);
         this.showToast('Rotate token ไม่สำเร็จ');
       },
+    });
+  }
+
+  generateSetupCode(device: any) {
+    this.api.createDisplaySetupCode(String(device.device_id)).subscribe({
+      next: r => {
+        device.setup_code = r.data?.code || '';
+        device.setup_code_expires_at = r.data?.expires_at || '';
+        this.showToast('สร้างรหัสติดตั้งแล้ว ใช้ได้ 10 นาที');
+      },
+      error: err => this.showToast(err?.error?.message || 'สร้างรหัสติดตั้งไม่สำเร็จ'),
     });
   }
 
@@ -824,7 +841,21 @@ export class ServiceSettingsComponent implements OnInit, OnDestroy {
   }
 
   normalizeDevice(device: any) {
-    return { ...device, settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false, ...(device.settings || {}) }, allowed_ips_text: (device.allowed_ips || []).join(',') };
+    return { ...device, settings: { queue_limit: 6, show_multiple_queues: false, show_legacy_queue: false, hide_media: false, show_called_list: true, show_called_history: false, ...(device.settings || {}), remote_settings: { ...this.defaultRemoteSettings(), ...(device.settings?.remote_settings || {}) } }, allowed_ips_text: (device.allowed_ips || []).join(',') };
+  }
+
+  defaultRemoteSettings() {
+    return { enabled: false, fullscreen: true, start_on_login: false, screen_index: 0, update_mode: 'immediate', update_time: '03:00', update_once: false, update_version: '', update_url: '' };
+  }
+
+  runtimeStatusText(status: any) {
+    return ({ ready: 'พร้อมใช้งาน', up_to_date: 'อัปเดตแล้ว', waiting: 'รอเวลาอัปเดต', downloading: 'กำลังดาวน์โหลด', installing: 'กำลังติดตั้ง', failed: 'อัปเดตไม่สำเร็จ' } as Record<string, string>)[status?.state] || 'ไม่ทราบสถานะ';
+  }
+
+  formatLastCall(value: any) {
+    if (!value) return '-';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('th-TH');
   }
 
   // An entry only exists for a type once an admin explicitly creates it (createOverrideForActiveTab).

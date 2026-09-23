@@ -13,6 +13,7 @@ import { DisplayPreviewComponent } from './display-preview.component';
 import { DisplayPlaygroundComponent } from './display-playground.component';
 import { RoomListDisplayComponent } from './room-list-display.component';
 import { DashboardComponent } from './dashboard.component';
+import { RemoteSettingsComponent } from './remote-settings.component';
 import { LoginComponent } from './login.component';
 import { adminGuard, authGuard } from './auth.guard';
 
@@ -32,5 +33,6 @@ export const routes: Routes = [
   { path: 'media-manager', component: MediaManagerComponent, canActivate: [adminGuard] },
   { path: 'service-settings', component: ServiceSettingsComponent, canActivate: [adminGuard] },
   { path: 'audio-settings', component: AudioSettingsComponent, canActivate: [adminGuard] },
+  { path: 'remote-settings', component: RemoteSettingsComponent, canActivate: [adminGuard] },
   { path: 'default-colors', component: DefaultColorsComponent, canActivate: [adminGuard] },
 ];

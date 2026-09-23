@@ -20,6 +20,7 @@ import { AuthService, AuthUser } from './auth.service';
         <a *ngIf="isAdminUser" routerLink="/media-manager" class="portal-card"><i class="fa-solid fa-images"></i><strong>Media Manager</strong><span>จัดการภาพสไลด์บนหน้าจอรวม</span></a>
         <a *ngIf="isAdminUser" routerLink="/service-settings" class="portal-card"><i class="fa-solid fa-sliders"></i><strong>Service Settings</strong><span>ตั้งค่าจุดบริการ เสียง และ device token</span></a>
         <a *ngIf="isAdminUser" routerLink="/audio-settings" class="portal-card"><i class="fa-solid fa-file-audio"></i><strong>Audio Settings</strong><span>อัปโหลด ตั้งชื่อ และทดสอบไฟล์เสียง</span></a>
+        <a *ngIf="isAdminUser" routerLink="/remote-settings" class="portal-card"><i class="fa-solid fa-desktop"></i><strong>ตั้งค่าระยะไกล</strong><span>ควบคุม Electron และเลือกตัวติดตั้งให้แต่ละจอ</span></a>
         <a *ngIf="isAdminUser" routerLink="/default-colors" class="portal-card"><i class="fa-solid fa-palette"></i><strong>Default Colors</strong><span>ตั้งค่าสีเริ่มต้นสำหรับปุ่ม "คืนค่าเริ่มต้น"</span></a>
         <a *ngIf="isAdminUser" routerLink="/display-playground" class="portal-card"><i class="fa-solid fa-vial"></i><strong>ทดลองหน้าจอ</strong><span>ทดลองทุกแบบจอโดยไม่ต้องผูก device จริง</span></a>
       </nav>

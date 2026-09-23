@@ -60,6 +60,8 @@ export class QueueService {
   uploadAudio(body: FormData) { return this.http.post<any>(this.api('/audio-files'), body); }
   updateAudioFiles(items: any[]) { return this.http.put<any>(this.api('/audio-files'), { items }); }
   deleteAudioFile(file: string) { return this.http.delete<any>(this.api(`/audio-files/${encodeURIComponent(file)}`)); }
+  displayUpdates() { return this.http.get<any>(this.api('/display-updates')); }
+  uploadDisplayUpdate(body: FormData) { return this.http.post<any>(this.api('/display-updates'), body); }
   createDisplayDevice(locationId: string, body: any) { return this.http.post<any>(this.api(`/location-configs/${encodeURIComponent(locationId)}/devices`), body); }
   resolveDisplayDevice(token: string) { return this.http.get<any>(this.api('/display-devices/resolve'), { params: { token } }); }
   displayDevice(token: string) { return this.http.get<any>(this.api('/display-devices/display'), { params: { token } }); }
@@ -75,6 +77,7 @@ export class QueueService {
   }
   updateDisplayDevice(deviceId: string, body: any) { return this.http.put<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`), body); }
   rotateDisplayDeviceToken(deviceId: string) { return this.http.post<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/rotate-token`), {}); }
+  createDisplaySetupCode(deviceId: string) { return this.http.post<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}/setup-code`), {}); }
   deleteDisplayDevice(deviceId: string) { return this.http.delete<any>(this.api(`/display-devices/${encodeURIComponent(deviceId)}`)); }
   call(body: any) { return this.http.post<any>(this.api('/call'), body); }
   hold(body: any) { return this.http.post<any>(this.api('/hold'), body); }

@@ -37,6 +37,11 @@
             ]
           },
           "configurations": {
+            "development": {
+              "optimization": false,
+              "sourceMap": true,
+              "extractLicenses": false
+            },
             "production": {
               "baseHref": "/queue/",
               "fileReplacements": [
@@ -51,9 +56,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "buildTarget": "cpaqueue:build",
+            "buildTarget": "cpaqueue:build:development",
             "proxyConfig": "proxy.conf.json"
-          }
+          },
+          "configurations": {
+            "development": {
+              "buildTarget": "cpaqueue:build:development"
+            },
+            "production": {
+              "buildTarget": "cpaqueue:build:production"
+            }
+          },
+          "defaultConfiguration": "development"
         }
       }
     }
