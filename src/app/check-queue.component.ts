@@ -43,7 +43,7 @@ import { QueueService } from './queue.service';
                 <span class="detail-label">{{result.location_name || 'จุดบริการ'}}</span>
                 <strong>{{roomText(result)}}</strong>
               </div>
-              <b [class.done]="result.call_status==='N'" [class.wait]="result.call_status==='Y'">{{statusText(result.call_status)}}</b>
+              <b [ngClass]="statusClass(result)">{{statusText(result)}}</b>
             </div>
             <p>{{messageFor(result)}}</p>
           </article>
@@ -104,6 +104,10 @@ export class CheckQueueComponent implements OnInit {
   }
 
   messageFor(result: any) {
+    if (result?.source === 'pharmacy_robot') {
+      if (result.service_status === 'กำลังเรียกคิว') return `กรุณาไปที่ ${result.location_name || 'ห้องยา'}`;
+      return result.finance_status || 'อยู่ระหว่างดำเนินการ';
+    }
     return result?.call_status === 'Y'
       ? (result.remaining === 0 ? 'คุณเป็นคิวถัดไป เตรียมตัวเข้ารับบริการ' : `อีก ${result.remaining} คิวถึงคุณ`)
       : result?.call_status === 'N'
@@ -113,7 +117,18 @@ export class CheckQueueComponent implements OnInit {
           : 'อยู่ในสถานะรอผล/ไม่พบ';
   }
 
-  statusText(s: string) {
+  statusText(result: any) {
+    if (result?.source === 'pharmacy_robot') return result.service_status || 'อยู่ระหว่างดำเนินการ';
+    const s = result?.call_status;
     return s === 'N' ? 'เรียกแล้ว' : s === 'F' ? 'เลยคิว' : s === 'W' ? 'ไม่พบ/รอผล' : 'รอเรียก';
+  }
+
+  statusClass(result: any) {
+    if (result?.source === 'pharmacy_robot') {
+      if (result.service_status === 'จ่ายยาเสร็จสิ้น') return 'done';
+      if (result.service_status !== 'ยกเลิกรายการ') return 'wait';
+      return '';
+    }
+    return result.call_status === 'N' ? 'done' : result.call_status === 'Y' ? 'wait' : '';
   }
 }
