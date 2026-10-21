@@ -304,6 +304,8 @@ export class DisplayDeviceComponent implements OnInit {
   currentMedia: any = null;
   mediaIndex = 0;
   slideTimer?: number;
+  private boardRetryTimer?: number;
+  private boardRequestInFlight = false;
   youtubeUrlCache = new Map<string, any>();
   initialLoadDone = false;
   lastActiveByRoom = new Map<string, string>();
@@ -474,6 +476,8 @@ export class DisplayDeviceComponent implements OnInit {
   }
 
   loadBoard() {
+    if (this.boardRequestInFlight) return;
+    this.boardRequestInFlight = true;
     const displayRequest = this.sandboxMode
       ? this.api.sandboxDisplayData(
           this.device.device_type,
@@ -486,6 +490,11 @@ export class DisplayDeviceComponent implements OnInit {
         : this.api.displayDevice(this.token);
     displayRequest.subscribe({
       next: r => {
+        this.boardRequestInFlight = false;
+        this.clearBoardRetry();
+        this.error = false;
+        this.loading = false;
+        this.message = '';
         if (this.demoMode && !this.sandboxMode && !this.initialLoadDone) {
           r = {
             ...r,
@@ -569,8 +578,39 @@ export class DisplayDeviceComponent implements OnInit {
         if (!this.lastCalledRoomId) this.setLatestCalledFromData();
         if (this.isRoomGridMode) setTimeout(() => this.checkGridHistoryOverflow(), 0);
       },
-      error: err => this.showError(err?.status === 403 ? 'IP ของเครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้' : 'โหลดข้อมูลหน้าจอไม่สำเร็จ'),
+      error: err => {
+        this.boardRequestInFlight = false;
+        const status = Number(err?.status || 0);
+        if (status === 401 || status === 403 || status === 404) {
+          this.showError(status === 403
+            ? 'เครื่องนี้ไม่ได้รับอนุญาตให้ใช้ device นี้'
+            : 'ไม่พบ device token หรือ token ถูกปิดใช้งาน');
+          return;
+        }
+
+        console.warn('Display data load failed; retrying automatically', err);
+        if (!this.initialLoadDone) {
+          this.error = true;
+          this.loading = false;
+          this.message = 'การเชื่อมต่อขัดข้อง กำลังเชื่อมต่อใหม่...';
+        }
+        this.scheduleBoardRetry();
+      },
     });
+  }
+
+  private scheduleBoardRetry() {
+    if (this.boardRetryTimer || !this.device?.room_ids?.length) return;
+    this.boardRetryTimer = window.setTimeout(() => {
+      this.boardRetryTimer = undefined;
+      this.loadBoard();
+    }, 5000);
+  }
+
+  private clearBoardRetry() {
+    if (!this.boardRetryTimer) return;
+    window.clearTimeout(this.boardRetryTimer);
+    this.boardRetryTimer = undefined;
   }
 
   checkGridHistoryOverflow() {
